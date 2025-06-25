@@ -10,52 +10,9 @@
 #include <stack>
 #include <iomanip>
 
-#include "once.h"
-
-#define OOPS_ENABLE_TRACE 1
-
-// 定义TRACE_SCOPE
-#define OOPS_TRACE_SCOPE_NAMED(name) ::oops::TraceScope name{::oops::MakeTraceScope([]{})}
-
-#if OOPS_ENABLE_TRACE
-#define OOPS_TRACE_SCOPE() OOPS_TRACE_SCOPE_NAMED(__trace_scope##line)
-#else
-#define OOPS_TRACE_SCOPE()
-#endif
-
-#ifndef TRACE_SCOPE
-#define TRACE_SCOPE() OOPS_TRACE_SCOPE()
-#endif
-
-// 定义TRACE
-#if OOPS_ENABLE_TRACE
-#define OOPS_TRACE(label) ::oops::Trace(#label, __FILE__, __LINE__, []{})
-#else
-#define OOPS_TRACE(label)
-#endif
-
-#ifndef TRACE
-#define TRACE(label) OOPS_TRACE(label)
-#endif
-
-// 定义TRACE_OUTPUT
-#if OOPS_ENABLE_TRACE
-#define OOPS_TRACE_OUTPUT_IMPL(out, label) ::oops::TraceStat::Get().Output(out, label)
-#else
-#define OOPS_TRACE_OUTPUT_IMPL(out, label) 
-#endif
-
-#define OOPS_TRACE_OUTPUT(out, label) OOPS_TRACE_OUTPUT_IMPL(out, #label)
-
-#ifndef TRACE_OUTPUT
-#define TRACE_OUTPUT(out, label) OOPS_TRACE_OUTPUT(out, label)
-#endif
-
-#define OOPS_TRACE_PRINT() OOPS_TRACE_OUTPUT_IMPL(::std::cout, nullptr)
-
-#ifndef TRACE_PRINT
-#define TRACE_PRINT() OOPS_TRACE_PRINT()
-#endif
+#include "oops/once.h"
+#include "oops/str.h"
+#include "oops/trace_def.h"
 
 #define OOPS_LOGGER ::std::cout
 
@@ -65,22 +22,6 @@ constexpr uint8_t TIME{1};
 constexpr uint8_t CPU_TIME{1 << 1};
 constexpr uint8_t RSS{1 << 2};
 constexpr uint8_t HWM{1 << 3};
-}
-
-std::string RepeatStr(const std::string &str, size_t n) {
-    if (n == 0 || str.empty()) {
-        return {};
-    }
-    std::string ret;
-    ret.reserve(n * str.size());
-    for (size_t i{0}; i < n; ++i) {
-        ret.append(str);
-    }
-    return ret;
-}
-
-std::string operator*(size_t n, const std::string &str) {
-    return RepeatStr(str, n);
 }
 
 class TraceConfig {

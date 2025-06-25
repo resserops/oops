@@ -1,4 +1,5 @@
 #pragma once
+
 #include <cstddef>
 
 #define OOPS_ONLY(n) if (::oops::OnlyImpl<n>([]{}))
