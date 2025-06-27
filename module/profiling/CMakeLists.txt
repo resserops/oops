@@ -4,7 +4,7 @@ target_include_directories(oops_profiling_i INTERFACE ${CMAKE_CURRENT_SOURCE_DIR
 target_link_libraries(oops_profiling_i INTERFACE oops_common_i)
 
 # 构建对象库
-file(GLOB_RECURSE SRC "src/*.cc")
+file(GLOB_RECURSE SRC "src/*.cpp")
 add_library(oops_profiling_o OBJECT ${SRC})
 target_link_libraries(oops_profiling_o PRIVATE oops_common_o)
 set_property(TARGET oops_profiling_o PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -23,7 +23,7 @@ set_target_properties(oops_profiling_d PROPERTIES OUTPUT_NAME oops_profiling)
 
 if(ENABLE_TEST)
     # 构建测试对象库
-    file(GLOB_RECURSE TEST_SRC "test/*.cc")
+    file(GLOB_RECURSE TEST_SRC "test/*.cpp")
     add_library(oops_profiling_test_o OBJECT ${TEST_SRC})
     target_link_libraries(oops_profiling_test_o PRIVATE oops_profiling_i)
 
