@@ -1,7 +1,10 @@
 #include "oops/str.h"
 
+#include <cstring>
+#include <cassert>
+
 namespace oops {
-std::string RepeatStr(const std::string &str, size_t n) {
+std::string StrRepeat(const std::string &str, size_t n) {
     if (n == 0 || str.empty()) {
         return {};
     }
@@ -14,10 +17,14 @@ std::string RepeatStr(const std::string &str, size_t n) {
 }
 
 std::string operator*(const std::string &str, size_t n) {
-    return RepeatStr(str, n);
+    return StrRepeat(str, n);
 }
 
 std::string operator*(size_t n, const std::string &str) {
-    return RepeatStr(str, n);
+    return StrRepeat(str, n);
+}
+
+std::string StrSplitBack(const std::string &str, const std::string &delim) {
+    return str.substr(str.rfind(delim) + delim.size());
 }
 }
