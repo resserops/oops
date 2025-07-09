@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-#define OOPS_ONLY(n) if (::oops::OnlyImpl<n>([]{}))
+#define OOPS_ONLY(n) if (::oops::impl::OnlyImpl<n>([]{}))
 #ifndef ONLY
 #define ONLY(n) OOPS_ONLY(n)
 #endif
@@ -18,6 +18,7 @@
 #endif
 
 namespace oops {
+namespace impl {
 template <size_t N, typename F>
 bool OnlyImpl(F &&f) {
     static size_t count{N};
@@ -26,5 +27,6 @@ bool OnlyImpl(F &&f) {
         return true;
     }
     return false;
+}
 }
 }

@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <string>
+#include <sstream>
 
 namespace oops {
 template <typename Iter>
@@ -54,5 +55,12 @@ void StrSplitToIterMultiDelim(const std::string &str, const std::string &delims,
     if (!skip_empty || str.size() > begin) {
         *(iter++) = str.substr(begin);
     }
+}
+
+template <typename T>
+std::string ToStr(const T &t) {
+    std::ostringstream oss;
+    oss << t;
+    return oss.str();
 }
 }
