@@ -12,6 +12,8 @@
 
 #include "oops/once.h"
 #include "oops/str.h"
+#include "oops/format.h"
+
 #include "oops/trace_def.h"
 
 #define OOPS_LOGGER ::std::cout
@@ -36,6 +38,27 @@ public:
 
 private:
     bool only_id_{false};
+};
+
+struct RecordLog {
+    size_t id;
+    const char *label;
+    const char *file;
+    int line;
+    size_t level;
+    size_t count;
+    double time;
+    double time_pct;
+};
+
+class FRecord {
+public:
+    void Output(std::ostream &out) const {
+        ftable_.Output(out);
+    }
+
+private:
+    FTable ftable_;
 };
 
 class Record {
@@ -201,7 +224,7 @@ class TraceStat {
                 other_record.Output(out, sum_record);
                 out << std::endl;
             }
-        }
+        } 
 
     private:
         Record record_;

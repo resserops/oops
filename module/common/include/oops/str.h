@@ -21,6 +21,9 @@ template <typename Iter>
 void StrSplitToIterMultiDelim(const std::string &str, const std::string &delims, bool skip_empty, Iter iter);
 template <typename Iter>
 void StrSplitToIterMultiDelim(const std::string &str, const std::string &delims, Iter iter);
+
+template <typename T>
+std::string ToStr(const T &t);
 }
 
 #include "oops/str.tpp"
