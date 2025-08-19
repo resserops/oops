@@ -1,0 +1,29 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install C++ build toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++-12 cmake make
+      
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Build project
+        run: ./build.py
+
+      - name: Test
+        run: ./build/bin/test
