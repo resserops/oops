@@ -16,11 +16,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y g++-12 cmake make
       
-      - name: Install Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-          cache: pip
 
       - name: Build project
         run: ./build.py
