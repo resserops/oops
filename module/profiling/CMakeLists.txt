@@ -6,7 +6,7 @@ target_link_libraries(oops_profiling_i INTERFACE oops_common_i)
 # 构建对象库
 file(GLOB_RECURSE SRC "src/*.cpp")
 add_library(oops_profiling_o OBJECT ${SRC})
-target_link_libraries(oops_profiling_o PRIVATE oops_common_o)
+target_link_libraries(oops_profiling_o PRIVATE oops_profiling_i)
 set_property(TARGET oops_profiling_o PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # 构建静态库

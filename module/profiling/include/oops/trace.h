@@ -9,10 +9,12 @@
 #include <iostream>
 #include <stack>
 #include <iomanip>
+#include <sstream>
 
 #include "oops/once.h"
 #include "oops/str.h"
 #include "oops/format.h"
+#include "oops/range.h"
 
 #include "oops/trace_def.h"
 
@@ -40,84 +42,83 @@ private:
     bool only_id_{false};
 };
 
+struct TraceInterval {
+    TraceInterval &operator+=(const TraceInterval &rhs) {
+        count += rhs.count;
+        time += rhs.time;
+        return *this;
+    }
+    TraceInterval &operator-=(const TraceInterval &rhs) {
+        count -= rhs.count;
+        time -= rhs.time;
+        return *this;
+    }
+
+    void Output(std::ostream &out, const TraceInterval &itv) const {}
+    size_t count{0};
+    double time{.0};
+};
+
+struct TracePoint {
+    static TracePoint Get() {
+        TracePoint trace_point;
+        trace_point.time_point = std::chrono::system_clock::now();
+        return trace_point;
+    }
+    TraceInterval operator-(const TracePoint &rhs) const {
+        TraceInterval data;
+        auto us{std::chrono::duration_cast<std::chrono::microseconds>(time_point - rhs.time_point).count()};
+        data.count = 1;
+        data.time = static_cast<double>(us) / 1e6;
+        return data;
+    }
+    
+    std::chrono::system_clock::time_point time_point;
+};
+
 struct RecordLog {
-    size_t id;
+    int id;
     const char *label;
     const char *file;
     int line;
-    size_t level;
+    size_t depth;
     size_t count;
     double time;
-    double time_pct;
+    double time_ratio2entry;
+    double time_ratio2root;
 };
 
-class FRecord {
-public:
-    void Output(std::ostream &out) const {
-        ftable_.Output(out);
+struct RecordTable {
+    void Extend(const RecordTable &rhs) {
+        // table_.insert(a.end(), b.begin(), b.end());
     }
 
-private:
-    FTable ftable_;
+    void Append(const RecordLog &log) {
+        table_.push_back(log);
+    }
+
+    void Output(std::ostream &out) const {
+        FTable ftable;
+        ftable.AppendRow("Lable", "Count", "Time (s)", "Time (%)", "Location");
+        for (const auto &log : table_) {
+            std::string time_ratio = ToStr(FFloatPoint{100 * log.time_ratio2root}) + "%";
+            auto time = FFloatPoint{log.time}.SetPrecision(3);
+            if (log.id >= 0) {
+                std::ostringstream oss;
+                oss << std::string(log.file) << ":" << log.line;
+                ftable.AppendRow(StrRepeat("  ", log.depth) + log.label + ":" + std::to_string(log.id), log.count, time, time_ratio, oss.str());
+            } else if (log.time >= 0.001) {
+                ftable.AppendRow(StrRepeat("  ", log.depth) + "other", "", time, time_ratio, "");
+            }
+        }
+        out << ftable;
+    }
+
+    std::vector<RecordLog> table_;
 };
 
 class Record {
 public:
-    class Sample;
-
-private:
-    class Data {
-        friend class Record::Sample;
-
-    public:
-        Data &operator+=(const Data &rhs) {
-            count_ += rhs.count_;
-            time_ += rhs.time_;
-            return *this;
-        }
-
-        Data &operator-=(const Data &rhs) {
-            count_ -= rhs.count_;
-            time_ -= rhs.time_;
-            return *this;
-        }
-
-        size_t GetCount() const {
-            return count_;
-        }
-
-        template <typename Out>
-        void Output(Out &out, const Data &itv) const {
-            out << "time: " << std::setprecision(3) << time_ << "s (" << (100 * time_ / itv.time_) << "%)";
-        }
-
-    private:
-        size_t count_{0};
-        double time_{0};
-    };
-
-public:
-    // 采样结果，存储每个时刻的指标值
-    class Sample {
-    public:
-        static auto Get() {
-            Sample sample;
-            sample.time_point_ = std::chrono::system_clock::now();
-            return sample;
-        }
-        
-        Data operator-(const Sample &rhs) const {
-            Data data;
-            auto count{std::chrono::duration_cast<std::chrono::microseconds>(time_point_ - rhs.time_point_).count()};
-            data.count_ = 1;
-            data.time_ = static_cast<double>(count) / 1e6;
-            return data;
-        }
-
-    private:
-        std::chrono::system_clock::time_point time_point_{};
-    };
-
     Record(const char *label, const char *file, int line) : label_{label}, file_{file}, line_{line}, id_{id_incr_++} {}
 
     Record &operator+=(const Record &rhs) {
@@ -125,7 +126,7 @@ public:
         return *this;
     }
 
-    Record &operator+=(const Data &rhs) {
+    Record &operator+=(const TraceInterval &rhs) {
         data_ += rhs;
         return *this;
     }
@@ -144,44 +145,37 @@ public:
     int GetLine() const {
         return line_;
     }
-    template <typename Out>
-    void OutputLoc(Out &out) const {
-        out << file_ << ":" << line_;
-    }
 
     size_t GetCount() const {
-        return data_.GetCount();
+        return data_.count;
     }
 
-    template <typename Out>
-    void Output(Out &out, const Record &sum_record) const {
-        static TraceConfig &trace_conf{TraceConfig::Get()};
-        if (label_ == nullptr) {
-            out << "[other] ";
-        } else {
-            if (trace_conf.GetOnlyId()) {
-                out << "[" << id_ << "] ";
-            } else {
-                out << "[" << label_ << "-" << id_ << "] ";
-            }
-        }
-        data_.Output(out, sum_record.data_);
-        if (label_ != nullptr && !trace_conf.GetOnlyId()) {
-            out << " loc: " << file_ << ":" << line_ << " ";
-        }
+    const TraceInterval &GetTraceInterval() const {
+        return data_;
+    }
+
+    RecordLog GetLog() const {
+        RecordLog record_log;
+        record_log.count = data_.count;
+        record_log.id = id_;
+        record_log.label = label_;
+        record_log.file = file_;
+        record_log.line = line_;
+        record_log.time = data_.time;
+        return record_log;
     }
 
 private:
-    static inline size_t id_incr_{0};
+    static inline int id_incr_{0};
 
     // 标识符
-    size_t id_;
+    int id_;
     const char *label_;
     const char *file_;
     int line_;
 
     // 统计数据成员
-    Data data_;
+    TraceInterval data_;
 };
 
 // Trace数据的统计结果，当前全局粒度，后续预期线程粒度
@@ -206,25 +200,30 @@ class TraceStat {
         size_t GetDepth() const {
             return depth_;
         }
-        
-        template <typename Out>
-        void Output(Out &out, const Record &sum_record, size_t depth = 0) const {
-            out << depth * std::string{INDENT};
-            record_.Output(out, sum_record);
-            out << std::endl;
 
-            Record other_record{record_};
-            other_record.SetLabel(nullptr);
-            for (auto it{children_.rbegin()}; it != children_.rend(); ++it) {
-                (*it)->Output(out, sum_record, depth + 1);
-                other_record -= *((*it)->GetRecord());
-            }
+        const TraceInterval &GetRecordTable(const TraceInterval &root_itv, const TraceInterval &entry_itv, size_t depth, RecordTable &record_table) const {
+            const auto &itv{record_.GetTraceInterval()};
+            RecordLog log{record_.GetLog()};
+            log.depth = depth;
+            log.time_ratio2root = itv.time / root_itv.time;
+            log.time_ratio2entry = itv.time / entry_itv.time;
+            record_table.Append(log);
             if (!children_.empty()) {
-                out << (depth + 1) * std::string{INDENT};
-                other_record.Output(out, sum_record);
-                out << std::endl;
+                TraceInterval my_itv = itv;
+                for (auto &c : ReverseRange(children_)) {
+                    my_itv -= c->GetRecordTable(root_itv, entry_itv, depth + 1, record_table);
+                }
+                RecordLog other_log;
+                other_log.id = -1;
+                other_log.label = "other";
+                other_log.time = my_itv.time;
+                other_log.depth = depth + 1;
+                other_log.time_ratio2root = my_itv.time / root_itv.time;
+                other_log.time_ratio2entry = my_itv.time / root_itv.time;
+                record_table.Append(other_log);
             }
-        } 
+            return itv;
+        }
 
     private:
         Record record_;
@@ -236,6 +235,11 @@ public:
     static auto& Get() {
         static TraceStat prof_stat;
         return prof_stat;
+    }
+
+    void Clear() {
+        this->~TraceStat();
+        new (this) TraceStat{};
     }
 
     // 维护Record
@@ -259,9 +263,9 @@ public:
     }
 
     // 维护TraceScope
-    void StartTraceScope(size_t count) {
+    void StartTraceScope(size_t &count) {
         count_stack_.push(count);
-        scope_stack_.push(Record::Sample::Get());
+        scope_stack_.push(TracePoint::Get());
     }
 
     void EndTraceScope() {
@@ -270,48 +274,59 @@ public:
     }
 
     void UpdateRecord(Record &record) {
-        Record::Sample sample{Record::Sample::Get()};
+        TracePoint sample{TracePoint::Get()};
         std::swap(sample, scope_stack_.top());
         record += (scope_stack_.top() - sample);
+
         if (record.GetCount() != count_stack_.top()) {
-            ONCE() {
-                OOPS_LOGGER << "WARNING: TRACE count " << record.GetCount() << " is not equal to TRACE_SCOPE count " << scope_count_ << ". Please use a separate TRACE_SCOPE inside each loop or conditional block. (" << record.GetFile() << ":" << record.GetLine() << ")" << std::endl;
-            }
+            OOPS_LOGGER << "WARNING: TRACE count " << record.GetCount() << " is not equal to TRACE_SCOPE count " << count_stack_.top() << ". Please use a separate TRACE_SCOPE inside each loop or conditional block. (" << record.GetFile() << ":" << record.GetLine() << ")" << std::endl;
         }
     }
 
-    template <typename Out>
-    void Output(Out &out) const {
-        Record sum{"", "", 0};
-        for (auto n : node_stack_) {
-            sum += *(n->GetRecord());
-        }
-        for (auto n : node_stack_) {
-            n->Output(out, sum);
-        }
-        out << std::endl;
-    }
-    
-    template <typename Out>
-    void Output(Out &out, const char *label) const {
+    RecordTable GetRecordTable(const char *label) const {
         if (label == nullptr) {
-            Output(out);
-            return;
+            return GetRecordTable();
         }
-        auto label_it{node_map_.find(label)};
-        if (label_it != node_map_.end()) {
-            label_it->second.Output(out, *(label_it->second.GetRecord()));
+        auto node_it{node_map_.find(label)};
+        if (node_it != node_map_.end()) {
+            auto &entry_node{node_it->second};
+            auto root_itv{GetRootItv()};
+            RecordTable table;
+            entry_node.GetRecordTable(root_itv, entry_node.GetRecord()->GetTraceInterval(), 0, table);
+            return table;
         }
-        out << std::endl;
+        return {};
+    }
+
+    RecordTable GetRecordTable() const {
+        auto root_itv{GetRootItv()};
+        std::cout << root_itv.count << std::endl;
+        std::cout << root_itv.time << std::endl;
+        RecordTable table;
+        for (auto n : node_stack_) {
+            n->GetRecordTable(root_itv, root_itv, 0, table);
+        }
+        return table;
+    }
+
+    TraceInterval GetRootItv() const {
+        TraceInterval root_itv;
+        for (auto n : node_stack_) {
+            root_itv += n->GetRecord()->GetTraceInterval();
+        }
+        return root_itv;
     }
 
 private:
-    size_t scope_count_{};
     std::stack<size_t> count_stack_;
-    std::stack<Record::Sample> scope_stack_;                // 维护Scope层次关系，保留每层Scope的初始Sample
+    std::stack<TracePoint> scope_stack_;                    // 维护Scope层次关系，保留每层Scope的初始Sample
     std::vector<RecordNode *> node_stack_;                  // 没有置入父结点的Record，打印时需要遍历
     std::unordered_map<std::string, RecordNode> node_map_;  // 索引指定名字的Record
 };
+
+// 当前代码，不同上层record通过调用函数，trace到相同的代码，会一起统计，无法区分这个trace的归属
+// 后续思路，每个trace的全链前缀都要有不同的record
+// scope的时候建立索引关系，trace的时候刷值
 
 // Scope为粒度，每层统计作用域
 template <typename F>
