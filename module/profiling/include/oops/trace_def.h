@@ -26,7 +26,7 @@
 
 // 定义TRACE_OUTPUT
 #if OOPS_ENABLE_TRACE
-#define OOPS_TRACE_OUTPUT_IMPL(out, label) ::oops::TraceStat::Get().Output(out, label)
+#define OOPS_TRACE_OUTPUT_IMPL(out, label) ::oops::TraceStat::Get().GetRecordTable(label).Output(out)
 #else
 #define OOPS_TRACE_OUTPUT_IMPL(out, label) 
 #endif
