@@ -7,22 +7,36 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-22.04
+    
+    strategy:
+      matrix:
+        build_type: [debug, release]
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install C++ build toolchain
+      - name: Run actionlint
+        uses: reviewdog/action-actionlint@v1
+        with:
+          reporter: github-pr-check
+          level: error
+
+      - name: Install c++ build toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y g++-12 cmake make
       
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Setup python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Build project
-        run: ./build.py
+      - name: Build project (${{ matrix.build_type }})
+        env:
+          CC: gcc-12
+          CXX: g++-12
+        run: ./build.py --${{ matrix.build_type }}
 
       - name: Test
         run: ./build/bin/test
