@@ -48,7 +48,7 @@ TEST(CommonStr, StrSplitToIter) {
     EXPECT_EQ(res, (std::vector<std::string>{"abc", "defg", "hi"}));
 }
 
-TEST(CommonStr, StrSplitToIter2) {
+TEST(CommonStr, StrSplitToIterDelim) {
     std::vector<std::string> res;
     StrSplitToIter("abc:defg:hi", ":", std::back_inserter(res));
     EXPECT_EQ(res, (std::vector<std::string>{"abc", "defg", "hi"}));
