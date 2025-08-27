@@ -48,10 +48,11 @@ struct TraceInterval {
         time += rhs.time;
         return *this;
     }
-    TraceInterval &operator-=(const TraceInterval &rhs) {
-        count -= rhs.count;
-        time -= rhs.time;
-        return *this;
+    TraceInterval operator-(const TraceInterval &rhs) const {
+        TraceInterval itv;
+        itv.count = count - rhs.count;
+        itv.time = time - rhs.time;
+        return itv;
     }
 
     void Output(std::ostream &out, const TraceInterval &itv) const {}
@@ -76,11 +77,11 @@ struct TracePoint {
     std::chrono::system_clock::time_point time_point;
 };
 
-struct RecordLog {
-    int id;
-    const char *label;
-    const char *file;
-    int line;
+struct Record {
+    std::string id{};
+    const char *label{};
+    const char *file{};
+    int line{};
     size_t depth;
     size_t count;
     double time;
@@ -89,11 +90,7 @@ struct RecordLog {
 };
 
 struct RecordTable {
-    void Extend(const RecordTable &rhs) {
-        // table_.insert(a.end(), b.begin(), b.end());
-    }
-
-    void Append(const RecordLog &log) {
+    void Append(const Record &log) {
         table_.push_back(log);
     }
 
@@ -103,10 +100,10 @@ struct RecordTable {
         for (const auto &log : table_) {
             std::string time_ratio = ToStr(FFloatPoint{100 * log.time_ratio2root}) + "%";
             auto time = FFloatPoint{log.time}.SetPrecision(3);
-            if (log.id >= 0) {
+            if (log.label != nullptr) {
                 std::ostringstream oss;
                 oss << std::string(log.file) << ":" << log.line;
-                ftable.AppendRow(StrRepeat("  ", log.depth) + log.label + ":" + std::to_string(log.id), log.count, time, time_ratio, oss.str());
+                ftable.AppendRow(StrRepeat("  ", log.depth) + log.label + ":" + log.id, log.count, time, time_ratio, oss.str());
             } else if (log.time >= 0.001) {
                 ftable.AppendRow(StrRepeat("  ", log.depth) + "other", "", time, time_ratio, "");
             }
@@ -114,132 +111,36 @@ struct RecordTable {
         out << ftable;
     }
 
-    std::vector<RecordLog> table_;
+    std::vector<Record> table_;
 };
 
-class Record {
-public:
-    Record() = default;
-    Record(const char *label, const char *file, int line) : label_{label}, file_{file}, line_{line}, id_{id_incr_++} {}
-
-    Record &operator+=(const Record &rhs) {
-        data_ += rhs.data_;
-        return *this;
-    }
-
-    Record &operator+=(const TraceInterval &rhs) {
-        data_ += rhs;
-        return *this;
-    }
-
-    Record &operator-=(const Record &rhs) {
-        data_ -= rhs.data_;
-        return *this;
-    }
-
-    void SetLabel(const char *label) {
-        label_ = label;
-    }
-    const char *GetFile() const {
-        return file_;
-    }
-    int GetLine() const {
-        return line_;
-    }
-
-    size_t GetCount() const {
-        return data_.count;
-    }
-
-    const TraceInterval &GetTraceInterval() const {
-        return data_;
-    }
-
-    RecordLog GetLog() const {
-        RecordLog record_log;
-        record_log.count = data_.count;
-        record_log.id = id_;
-        record_log.label = label_;
-        record_log.file = file_;
-        record_log.line = line_;
-        record_log.time = data_.time;
-        return record_log;
-    }
-
-    static inline int id_incr_{0};
-
-    // 标识符
-    int id_;
-    const char *label_;
-    const char *file_;
-    int line_;
-
-    // 统计数据成员
-    TraceInterval data_;
+struct Location {
+    const char *label;
+    const char *file;
+    int line;
 };
 
 // Trace数据的统计结果，当前全局粒度，后续预期线程粒度
 class TraceStat {
-    class RecordNode {
-    public:
-        RecordNode() = default;
-        RecordNode(Record &&record, size_t depth) : record_{std::move(record)}, depth_{depth} {}
-
-        void AddChild(RecordNode *node) {
-            children_.push_back(node);
+    struct RecordNode {
+        RecordNode(void *location_id, int level, int idx_in_level) : location_id_{location_id}, level{level}, idx_in_level{idx_in_level} {}
+        RecordNode operator+=(const TraceInterval &rhs) {
+            data_ += rhs;
+            return *this;
+        }
+        bool Empty() const {
+            return data_.count == 0;
         }
 
-        const Record *GetRecord() const {
-            return &record_;
-        }
+        // 标识符
+        void *location_id_;
 
-        Record *GetRecord() {
-            return &record_;
-        }
-        
-        size_t GetDepth() const {
-            return depth_;
-        }
+        // 统计数据成员
+        TraceInterval data_;
 
-        TraceInterval GetRecordTable(const TraceInterval &root_itv, const TraceInterval &entry_itv, size_t depth, RecordTable &record_table) const {
-            const auto &itv{record_.GetTraceInterval()};
-            if (record_.file_ != nullptr) {
-                RecordLog log{record_.GetLog()};
-                log.depth = depth;
-                log.time_ratio2root = itv.time / root_itv.time;
-                log.time_ratio2entry = itv.time / entry_itv.time;
-                record_table.Append(log);
-                if (!children_.empty()) {
-                    TraceInterval my_itv = itv;
-                    for (auto &c : children_) {
-                        my_itv -= c->GetRecordTable(root_itv, entry_itv, depth + 1, record_table);
-                    }
-                    RecordLog other_log;
-                    other_log.id = -1;
-                    other_log.label = "other";
-                    other_log.time = my_itv.time;
-                    other_log.depth = depth + 1;
-                    other_log.time_ratio2root = my_itv.time / root_itv.time;
-                    other_log.time_ratio2entry = my_itv.time / root_itv.time;
-                    record_table.Append(other_log);
-                }
-                return itv;
-            } else {
-                // 跳过空结点
-                if (!children_.empty()) {
-                    TraceInterval my_itv;
-                    for (auto &c : children_) {
-                        my_itv += c->GetRecordTable(root_itv, entry_itv, depth, record_table);
-                    }
-                    return my_itv;
-                }
-                return itv;
-            }
-        }
-
-        Record record_;
-        size_t depth_;
-        std::vector<RecordNode *> children_;
+        // 树结构维护
+        int level, idx_in_level;
+        std::vector<int> children_;
     };
 
 public:
@@ -253,158 +154,144 @@ public:
         new (this) TraceStat{};
     }
 
-    // 维护Record
-    Record* CreateRecord(const char *label, const char *file, int line) {
-        assert(node_map_.find(label) == node_map_.end());
-
-        // 找不到Record，创建节点
-        size_t scope_depth{scope_stack_.size()};
-
-        auto ret{node_map_.insert({label, {{label, file, line}, scope_depth}})};
-        RecordNode &node{ret.first->second};
-
-        // 栈中节点深度大于新节点的，加入新节点的子节点
-        while (!node_stack_.empty() && node_stack_.back()->GetDepth() > scope_depth) {
-            node.AddChild(node_stack_.back());
-            node_stack_.pop_back();
-        }
-        node_stack_.push_back(&node);
-
-        return node.GetRecord();
-    }
-
     inline size_t CombineHash(size_t a, size_t b) {
         constexpr size_t GOLDEN_RATIO = 0x9e3779b97f4a7c15ULL;
         return a ^ (b + GOLDEN_RATIO + (a << 6) + (a >> 2));
     }
 
-    void CreateRecord(size_t id) {
-        if (hash_stack_.empty()) {
-            hash_stack_.push_back(id);
-        } else {
-            size_t chash = CombineHash(hash_stack_.back(), id);
-            hash_stack_.push_back(chash);
-        }
-        size_t hash = hash_stack_.back();
-
-        auto ret{nodes_.insert({hash, RecordNode{}})};
-        RecordNode &node = ret.first->second;
-        if (ret.second) {
-            node.depth_ = hash_stack_.size();
-            // 新node，建立和父节点的连接关系
-            if (!node_stack_.empty()) {
-                node_stack_.back()->AddChild(&node);
+    int GetOrCreateNode(int parent_i, void *location_id) {
+        RecordNode &parent{nodes_[parent_i]};
+        for (int node_i : parent.children_) {
+            RecordNode &node{nodes_[node_i]};
+            if (node.location_id_ == location_id) {
+                return node_i;
             }
-        } else {
-            assert(node.depth_ == hash_stack_.size());
         }
-
-        // 自己压栈
-        node_stack_.push_back(&node);        
+        size_t node_i{nodes_.size()};
+        size_t node_idx_in_level{parent.children_.size()};
+        nodes_.emplace_back(location_id, parent.level + 1, node_idx_in_level);
+        nodes_[parent_i].children_.push_back(node_i); // vector::emplace_back后，parent引用可能失效
+        return node_i;
     }
 
-    void UpdateRecord(size_t id, const char *label, const char *file, int line) {
-        // 更新数据，填充当前结点
-        node_stack_.back()->record_.label_ = label;
-        node_stack_.back()->record_.file_ = file;
-        node_stack_.back()->record_.line_ = line;
-        UpdateRecord(node_stack_.back()->record_);
+    void SetLocation(const char *label, const char *file, int line) {
+        void *location_id{nodes_[node_stack_.back()].location_id_};
+        auto ret{location_map_.insert({location_id, {label, file, line}})};
+        assert(ret.second);
+    }
 
-        // 更新下个结点并建立关系
-        assert(!hash_stack_.empty()); // 至少有一个scope的结点
-        size_t hash = CombineHash(hash_stack_.back(), id);
-        hash_stack_.back() = hash;
+    void CreateRecord(void *location_id) {
+        assert(!node_stack_.empty());
+        int parent_i{node_stack_.back()};
+        int node_i{GetOrCreateNode(parent_i, location_id)};
+        node_stack_.push_back(node_i);    
+    }
 
-        auto ret{nodes_.insert({hash, RecordNode{}})};
-        RecordNode &node = ret.first->second;
-        if (ret.second) {
-            node.depth_ = hash_stack_.size();
-            // 新node，建立和父节点的连接关系
-            if (node_stack_.size() > 1) {
-                node_stack_[node_stack_.size() - 2]->AddChild(&node);
-            }
-        } else {
-            assert(node.depth_ == hash_stack_.size());
-        }
+    void UpdateRecord(void *location_id) {
+        TracePoint sample{TracePoint::Get()};
+        std::swap(sample, scope_stack_.top());
+        nodes_[node_stack_.back()] += (scope_stack_.top() - sample);
 
-        // 自己替换栈
-        node_stack_.back() = &node;
+        assert(node_stack_.size() > 1);
+        int parent_i{node_stack_[node_stack_.size() - 2]};
+        int node_i{GetOrCreateNode(parent_i, location_id)};
+        node_stack_.back() = node_i;
     }
 
     // 维护TraceScope
     void StartTraceScope(size_t &count) {
-        count_stack_.push(count);
         scope_stack_.push(TracePoint::Get());
     }
 
     void EndTraceScope() {
-        count_stack_.pop();
         scope_stack_.pop();
-        hash_stack_.pop_back();
         node_stack_.pop_back();
     }
 
-    void UpdateRecord(Record &record) {
-        TracePoint sample{TracePoint::Get()};
-        std::swap(sample, scope_stack_.top());
-        record += (scope_stack_.top() - sample);
+    struct SumIntervals {
+        TraceInterval root;
+        TraceInterval entry;
+    };
+    
+    Record GetRecord(const RecordNode &node, const SumIntervals &sum_itvs, size_t depth) const {
+        Record record{GetRecord(node.data_, sum_itvs, depth)};
+        record.id = std::string{} + static_cast<char>('A' + node.level - 1) + std::to_string(node.idx_in_level);
+        record.label = location_map_.at(node.location_id_).label;
+        record.file = location_map_.at(node.location_id_).file;
+        record.line = location_map_.at(node.location_id_).line;
+        return record;
+    }
 
-        if (record.GetCount() != count_stack_.top()) {
-            OOPS_LOGGER << "WARNING: TRACE count " << record.GetCount() << " is not equal to TRACE_SCOPE count " << count_stack_.top() << ". Please use a separate TRACE_SCOPE inside each loop or conditional block. (" << record.GetFile() << ":" << record.GetLine() << ")" << std::endl;
-        }
+    Record GetRecord(const TraceInterval &itv, const SumIntervals &sum_itvs, size_t depth) const {
+        Record record;
+        record.depth = depth;
+        record.count = itv.count;
+        record.time = itv.time;
+        record.time_ratio2entry = itv.time / sum_itvs.entry.time;
+        record.time_ratio2root = itv.time / sum_itvs.root.time;
+        return record;
     }
 
     RecordTable GetRecordTable(const char *label) const {
-        if (label == nullptr) {
-            return GetRecordTable();
+        return GetRecordTable();
+    }
+
+    TraceInterval GetRecordTableImpl(int node_i, const SumIntervals &sum_itvs, size_t depth, RecordTable &record_table) const {
+        const RecordNode &node{nodes_[node_i]};
+        auto traverse_children = [&] (size_t depth) {
+            TraceInterval child_itv;
+            for (int child_i : node.children_) {
+                child_itv += GetRecordTableImpl(child_i, sum_itvs, depth, record_table);
+            }
+            return child_itv;
+        };
+        if (node.Empty()) {
+            return traverse_children(depth);
         }
-        auto node_it{node_map_.find(label)};
-        if (node_it != node_map_.end()) {
-            auto &entry_node{node_it->second};
-            auto root_itv{GetRootItv()};
-            RecordTable table;
-            entry_node.GetRecordTable(root_itv, entry_node.GetRecord()->GetTraceInterval(), 0, table);
-            return table;
+        record_table.Append(GetRecord(node, sum_itvs, depth));
+        if (!node.children_.empty()) {
+            record_table.Append(GetRecord(node.data_ - traverse_children(depth + 1), sum_itvs, depth + 1)); 
         }
-        return {};
+        return node.data_;
     }
 
     RecordTable GetRecordTable() const {
         auto root_itv{GetRootItv()};
-        std::cout << root_itv.count << std::endl;
-        std::cout << root_itv.time << std::endl;
         RecordTable table;
-        for (auto n : root_.children_) {
-            if (n->record_.file_ == nullptr) {
-                continue;
-            }
-            n->GetRecordTable(root_itv, root_itv, 0, table);
+        for (int node_i : nodes_[0].children_) {
+            GetRecordTableImpl(node_i, {root_itv, root_itv}, 0, table);
         }
         return table;
     }
 
     TraceInterval GetRootItv() const {
         TraceInterval root_itv;
-        for (auto n : root_.children_) {
-            root_itv += n->GetRecord()->GetTraceInterval();
+        for (int node_i : nodes_[0].children_) {
+            root_itv += nodes_[node_i].data_;
         }
         return root_itv;
     }
 
 private:
-    std::vector<size_t> hash_stack_;// 方案2，先使用存在hash碰撞的方式
-    std::unordered_map<size_t, RecordNode> nodes_;  // key为path hash，每个hash代表一个路径，每个独立路径，对应一个record
-    RecordNode root_;
-
-    std::stack<size_t> count_stack_;
+    std::vector<RecordNode> nodes_{{nullptr, 0, 0}};
+    std::vector<int> node_stack_{0};  // 方案2，先使用存在hash碰撞的方式
+    std::unordered_map<void *, Location> location_map_; // location数量比node少，而且访问较独立不会刷新，冷数据，单独管理
+    
     std::stack<TracePoint> scope_stack_;                    // 维护Scope层次关系，保留每层Scope的初始Sample
-    std::vector<RecordNode *> node_stack_{&root_};                  // 没有置入父结点的Record，打印时需要遍历
-    std::unordered_map<std::string, RecordNode> node_map_;  // 索引指定名字的Record
 };
 
 // 当前代码，不同上层record通过调用函数，trace到相同的代码，会一起统计，无法区分这个trace的归属
 // 后续思路，每个trace的全链前缀都要有不同的record
 // scope的时候建立索引关系，trace的时候刷值
+
+template <typename T>
+struct TypeId {
+    static void *Get() {
+        static char *addr{&c};
+        return addr;
+    }
+    static inline char c;
+};
 
 // Scope为粒度，每层统计作用域
 template <typename F>
@@ -413,7 +300,7 @@ public:
     TraceScope() {
         static TraceStat &stat{TraceStat::Get()};
         stat.StartTraceScope(++count_);
-        stat.CreateRecord(size_t(&count_));
+        stat.CreateRecord(&count_);
     }
 
     ~TraceScope() {
@@ -432,8 +319,12 @@ auto MakeTraceScope(F &&f) {
 
 template <typename F>
 void Trace(const char *label, const char *file, int line, F &&f) {
-    static size_t unique;
     static TraceStat &stat{TraceStat::Get()};
-    stat.UpdateRecord(size_t(&unique), label, file, line);
+    static bool location_set{false};
+    if (!location_set) {
+        stat.SetLocation(label, file, line);
+        location_set = true;
+    }
+    stat.UpdateRecord(&location_set);
 }
 }
