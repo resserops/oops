@@ -10,7 +10,11 @@ jobs:
     
     strategy:
       matrix:
-        build_type: [debug, release]
+        build:
+          - type: asan
+            args: -adt
+          - type: release
+            args: -rt
     
     steps:
       - name: Checkout code
@@ -32,11 +36,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Build project (${{ matrix.build_type }})
+      - name: Build project (${{ matrix.build.type }})
         env:
           CC: gcc-12
           CXX: g++-12
-        run: ./build.py --${{ matrix.build_type }}
+        run: ./build.py ${{ matrix.build.args }}
 
       - name: Test
         run: ./build/bin/test
