@@ -22,6 +22,9 @@ void StrSplitToIterMultiDelim(const std::string &str, const std::string &delims,
 template <typename Iter>
 void StrSplitToIterMultiDelim(const std::string &str, const std::string &delims, Iter iter);
 
+[[nodiscard]] bool StrStartsWith(std::string_view sv, std::string_view prefix);
+[[nodiscard]] bool StrEndsWith(std::string_view sv, std::string_view suffix);
+
 template <typename T>
 std::string ToStr(const T &t);
 }
