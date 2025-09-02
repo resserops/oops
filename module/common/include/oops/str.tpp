@@ -58,9 +58,22 @@ void StrSplitToIterMultiDelim(const std::string &str, const std::string &delims,
 }
 
 template <typename T>
-std::string ToStr(const T &t) {
-    std::ostringstream oss;
+::std::string ToStr(const T &t) {
+    ::std::ostringstream oss;
     oss << t;
     return oss.str();
+}
+
+namespace str{
+template<typename T>
+T FromStr(const ::std::string_view sv) {
+    ::std::istringstream iss(::std::string{sv}); // TODO(resserops): 优化自定义stream
+    T t{};
+    iss >> t;
+    if (iss.fail() || !iss.eof()) {
+        throw ::std::invalid_argument{""};  // TODO(resserops): 填写详细错误信息
+    }
+    return t;
+}
 }
 }

@@ -27,4 +27,39 @@ std::string operator*(size_t n, const std::string &str) {
 std::string StrSplitBack(const std::string &str, const std::string &delim) {
     return str.substr(str.rfind(delim) + delim.size());
 }
+
+namespace str {
+bool StartsWith(std::string_view sv, std::string_view prefix) {
+    if (prefix.empty()) {
+        return true;
+    }
+    if (prefix.size() > sv.size()) {
+        return false;
+    }
+    return sv.substr(0, prefix.size()) == prefix;
+}
+
+bool EndsWith(std::string_view sv, std::string_view suffix) {
+    if (suffix.empty()) {
+        return true;
+    }
+    if (suffix.size() > sv.size()) {
+        return false;
+    }
+    return sv.substr(sv.size() - suffix.size()) == suffix;
+}
+
+std::string_view Strip(std::string_view sv, std::string_view chars) {
+    if (sv.empty()) {
+        return sv;
+    }
+
+    std::size_t pos{sv.find_first_not_of(chars)};
+    if (pos == sv.npos) {
+        return {};
+    }
+
+    return sv.substr(pos, sv.find_last_not_of(chars) - pos + 1);
+}
+}
 }

@@ -4,6 +4,7 @@
 #include "oops/str.h"
 
 using namespace oops;
+using namespace oops::str;
 using namespace std::literals;
 
 TEST(CommonStr, StrRepeat) {
@@ -52,4 +53,47 @@ TEST(CommonStr, StrSplitToIterDelim) {
     std::vector<std::string> res;
     StrSplitToIter("abc:defg:hi", ":", std::back_inserter(res));
     EXPECT_EQ(res, (std::vector<std::string>{"abc", "defg", "hi"}));
+}
+
+TEST(CommonStr, StartsWith) {
+    EXPECT_TRUE(StartsWith("abc", ""));
+    EXPECT_TRUE(StartsWith("abc", "a"));
+    EXPECT_TRUE(StartsWith("abc", "ab"));
+    EXPECT_TRUE(StartsWith("abc", "abc"));
+    EXPECT_FALSE(StartsWith("abc", "d"));
+    EXPECT_FALSE(StartsWith("abc", "ad"));
+    EXPECT_FALSE(StartsWith("abc", "abd"));
+    EXPECT_FALSE(StartsWith("abc", "abcd"));
+}
+
+TEST(CommonStr, EndsWith) {
+    EXPECT_TRUE(EndsWith("abc", ""));
+    EXPECT_TRUE(EndsWith("abc", "c"));
+    EXPECT_TRUE(EndsWith("abc", "bc"));
+    EXPECT_TRUE(EndsWith("abc", "abc"));
+    EXPECT_FALSE(EndsWith("abc", "d"));
+    EXPECT_FALSE(EndsWith("abc", "dc"));
+    EXPECT_FALSE(EndsWith("abc", "dbc"));
+    EXPECT_FALSE(EndsWith("abc", "dabc"));
+}
+
+TEST(CommonStr, Strip) {
+    EXPECT_EQ(Strip(""), "");
+    EXPECT_EQ(Strip(" "), "");
+    EXPECT_EQ(Strip("  "), "");
+    EXPECT_EQ(Strip("a"), "a");
+    EXPECT_EQ(Strip(" a"), "a");
+    EXPECT_EQ(Strip("a "), "a");
+    EXPECT_EQ(Strip(" a "), "a");
+    EXPECT_EQ(Strip("  a"), "a");
+    EXPECT_EQ(Strip("a  "), "a");
+    EXPECT_EQ(Strip("  a  "), "a");
+    EXPECT_EQ(Strip("abc"), "abc");
+    EXPECT_EQ(Strip(" abc"), "abc");
+    EXPECT_EQ(Strip("abc "), "abc");
+    EXPECT_EQ(Strip(" abc "), "abc");
+    EXPECT_EQ(Strip("  abc"), "abc");
+    EXPECT_EQ(Strip("abc  "), "abc");
+    EXPECT_EQ(Strip("  abc  "), "abc");
+    EXPECT_EQ(Strip("  a b c  "), "a b c");
 }
