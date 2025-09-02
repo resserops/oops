@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <string>
+#include <string_view>
 
 namespace oops {
 std::string StrRepeat(const std::string &str, size_t n);
@@ -24,6 +25,16 @@ void StrSplitToIterMultiDelim(const std::string &str, const std::string &delims,
 
 template <typename T>
 std::string ToStr(const T &t);
+
+namespace str {
+constexpr std::string_view WHITE_SPACE{" \t\n\r\v\f"};
+[[nodiscard]] bool StartsWith(std::string_view sv, std::string_view prefix);
+[[nodiscard]] bool EndsWith(std::string_view sv, std::string_view suffix);
+[[nodiscard]] std::string_view Strip(std::string_view sv, std::string_view chars = WHITE_SPACE);
+
+template<typename T>
+T FromStr(const std::string_view sv);
+}
 }
 
 #include "oops/str.tpp"
