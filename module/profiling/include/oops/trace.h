@@ -35,11 +35,11 @@ public:
         return trace_conf;
     }
 
-    void SetOnlyId(bool only_id) { only_id_ = only_id; }
-    bool GetOnlyId() const { return only_id_; }
+    void SetAnonymous(bool anonymous) { anonymous_ = anonymous; }
+    bool GetAnonymous() const { return anonymous_; }
 
 private:
-    bool only_id_{false};
+    bool anonymous_{false};
 };
 
 struct TraceInterval {
@@ -82,11 +82,11 @@ struct Record {
     const char *label{};
     const char *file{};
     int line{};
-    size_t depth;
-    size_t count;
-    double time;
-    double time_ratio2entry;
-    double time_ratio2root;
+    size_t depth{};
+    size_t count{};
+    double time{};
+    double time_ratio2entry{};
+    double time_ratio2root{};
 };
 
 struct RecordTable {
@@ -100,12 +100,21 @@ struct RecordTable {
         for (const auto &log : table_) {
             std::string time_ratio = ToStr(FFloatPoint{100 * log.time_ratio2root}) + "%";
             auto time = FFloatPoint{log.time}.SetPrecision(3);
-            if (log.label != nullptr) {
-                std::ostringstream oss;
-                oss << std::string(log.file) << ":" << log.line;
-                ftable.AppendRow(StrRepeat("  ", log.depth) + log.label + ":" + log.id, log.count, time, time_ratio, oss.str());
+            std::ostringstream label_oss, location_oss;
+            label_oss << StrRepeat("  ", log.depth);
+            if (!log.id.empty()) {
+                if (log.label != nullptr) {
+                    label_oss << log.label << ":" << log.id;
+                } else {
+                    label_oss << log.id;
+                }
+                if (log.file != nullptr) {
+                    location_oss << std::string(log.file) << ":" << log.line;
+                }
+                ftable.AppendRow(label_oss.str(), log.count, time, time_ratio, location_oss.str());
             } else if (log.time >= 0.001) {
-                ftable.AppendRow(StrRepeat("  ", log.depth) + "other", "", time, time_ratio, "");
+                label_oss << "other";
+                ftable.AppendRow(label_oss.str(), "", time, time_ratio, location_oss.str());
             }
         }
         out << ftable;
@@ -216,9 +225,11 @@ public:
     Record GetRecord(const RecordNode &node, const SumIntervals &sum_itvs, size_t depth) const {
         Record record{GetRecord(node.data_, sum_itvs, depth)};
         record.id = std::string{} + static_cast<char>('A' + node.level - 1) + std::to_string(node.idx_in_level);
-        record.label = location_map_.at(node.location_id_).label;
-        record.file = location_map_.at(node.location_id_).file;
-        record.line = location_map_.at(node.location_id_).line;
+        if (!TraceConfig::Get().GetAnonymous()) {
+            record.label = location_map_.at(node.location_id_).label;
+            record.file = location_map_.at(node.location_id_).file;
+            record.line = location_map_.at(node.location_id_).line;
+        }
         return record;
     }
 
