@@ -49,7 +49,16 @@ public:
     
     template <typename... Args>
     FTable &AppendRow(const Args &...args) {
-        table_.push_back({ToStr(args)...});
+        table_.back() = {ToStr(args)...};
+        table_.emplace_back();
+        return *this;
+    }
+    template <typename T>
+    FTable &Append(const T &t, bool end = false) {
+        table_.back().push_back({ToStr(t)});
+        if (end) {
+            table_.emplace_back();
+        }
         return *this;
     }
 
@@ -59,7 +68,7 @@ private:
     const Prop &GetProp(size_t j) const;
 
     ::std::string delim_{" "};
-    ::std::vector<::std::vector<::std::string>> table_;
+    ::std::vector<::std::vector<::std::string>> table_{{}};
     ::std::vector<Prop> col_prop_vec_;
     Prop table_prop_;
 };

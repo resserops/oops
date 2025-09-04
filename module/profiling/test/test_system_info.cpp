@@ -17,4 +17,3 @@ TEST(ProfilingSystemInfo, Status2) {
 TEST(ProfilingSystemInfo, Lscpu) {
     std::cout << lscpu::Get();
 }
-
