@@ -10,6 +10,7 @@
 #include <stack>
 #include <iomanip>
 #include <sstream>
+#include <bitset>
 
 #include "oops/once.h"
 #include "oops/str.h"
@@ -17,8 +18,6 @@
 #include "oops/range.h"
 
 #include "oops/trace_def.h"
-
-#define OOPS_LOGGER ::std::cout
 
 namespace oops {
 class TraceConfig {
@@ -28,7 +27,7 @@ public:
         return trace_conf;
     }
 
-    void SetAnonymous(bool anonymous) { anonymous_ = anonymous; }
+    void SetAnonymous(bool anonymous = true) { anonymous_ = anonymous; }
     bool GetAnonymous() const { return anonymous_; }
 
 private:
@@ -70,7 +69,7 @@ struct TimePoint {
 
 struct Location {   // 打点位置相关
     Location() = default;
-    Location(const char *label, const char *file, int line) : label{label}, file{file}, line{line}, anonymous_id{anonymous_id_incr++} {}
+    Location(const char *label, const char *file, int line) : label{label}, file{file}, line{line} {}
 
     std::string GetLabelStr() const {
         if (anonymous_id < 0) {
@@ -89,12 +88,10 @@ struct Location {   // 打点位置相关
         return std::string{file} + ":" + std::to_string(line);
     }
 
-    inline static int anonymous_id_incr{}; 
-
-    int line{-1};
-    int anonymous_id{-1};
     const char *label{};
     const char *file{};
+    int line{-1};
+    int anonymous_id{-1};
 };
 
 struct Memory {
@@ -120,27 +117,23 @@ struct RecordTable {
     std::vector<Record> table_;
 };
 
-// Trace数据的统计结果，当前全局粒度，后续预期线程粒度
-class TraceStat {
-    struct RecordNode {
-        RecordNode(void *location_id) : location_id_{location_id} {}
-        void Update(const TimeInterval rhs) {
-            data_ += rhs;
-        }
-        bool Empty() const {
-            return count == 0;
-        }
-        void UpdateTime(TimeInterval time_inverval) {
-            data_ += time_inverval;
-            ++count;
-        }
-        void UpdateMemory(const Memory &memory) {
-            memory_ = memory;
-        }
+class RecordStore {
+    class RecordNode {
+        friend class RecordStore;
 
+    public:
+        RecordNode(const void *location_id) : location_id_{location_id} {}
+
+        void UpdateTime(const TimeInterval &time_inverval);
+        void UpdateMemory(const Memory &memory);
+        
+        Location GetLocation() const;
+        bool Empty() const;
+
+    private:
         // 标识符
-        void *location_id_;
-        size_t count{};
+        const void *location_id_;
+        size_t count_{};
 
         // 统计数据成员
         TimeInterval data_;
@@ -150,66 +143,80 @@ class TraceStat {
     };
 
 public:
-    static TraceStat& Get();
+    static RecordStore& Get() {
+        static RecordStore &stat{GetImpl()};
+        return stat;
+    }
 
     void Clear();
     void SetLocation(const char *label, const char *file, int line);
-    void CreateRecord(void *location_id);
-    void UpdateRecord(void *location_id);
-
-    void StartTraceScope(size_t &count);
+    
+    void StartTraceScope(const void *location_id);
     void EndTraceScope();
+    void UpdateRecord(const void *location_id);
 
     RecordTable GetRecordTable(const char *label) const;
     RecordTable GetRecordTable() const;
 
 private:
-    int GetOrCreateNode(int parent_i, void *location_id);
+    static RecordStore& GetImpl();
+    int GetOrCreateNode(int parent_i, const void *location_id);
     TimeInterval GetRecordTableImpl(int node_i, size_t depth, RecordTable &record_table) const;
     Record GetRecord(const RecordNode &node, size_t depth) const;
     Record GetRecord(const TimeInterval &itv, size_t depth) const;
     TimeInterval GetRootItv() const;
-    Location GetLocaion(const RecordNode &node) const;
 
     std::vector<RecordNode> nodes_{{nullptr, 0, 0}};
-    std::vector<int> node_stack_{0};                    // 方案2，先使用存在hash碰撞的方式
-    std::unordered_map<void *, Location> location_map_;
-    
-    std::stack<TimePoint> scope_stack_;                 // 维护Scope层次关系，保留每层Scope的初始TimePoint
+    std::vector<int> node_stack_{0};
+    std::stack<TimePoint> scope_stack_;     // 维护当前Scope的第一个TimePoint，每次Trace，读取并刷新TimePoint
+    std::stack<size_t> count_stack_;        // 维护当前Scope的计数，
+};
+
+class TraceScopeBase {
+protected:
+    void Throw(unsigned char scope_count, unsigned char trace_count, const char *label, const char *file, int line) {
+        std::ostringstream oss;
+        oss << "TRACE " << label << " missing TRACE_SCOPE declaration in SAME block scope. ";
+        if (scope_count < trace_count) {
+            oss << "TRACE_SCOPE count " << static_cast<int>(scope_count) << " < TRACE count " << static_cast<int>(trace_count) << ". Possible cause: TRACE_SCOPE for { TRACE }. ";
+        } else {
+            oss << "TRACE_SCOPE count " << static_cast<int>(scope_count) << " > TRACE count " << static_cast<int>(trace_count) << ". Possible cause: TRACE_SCOPE if { TRACE }. ";
+        }
+        oss << "(" << file << ":" << line << ")";
+        throw std::runtime_error(oss.str());  
+    }
 };
 
 // Scope为粒度，每层统计作用域
 template <typename F>
-class TraceScope {
+class TraceScope : public TraceScopeBase {
 public:
     TraceScope() {
-        static TraceStat &stat{TraceStat::Get()};
-        stat.StartTraceScope(++count_);
-        stat.CreateRecord(&count_);
+        RecordStore::Get().StartTraceScope(&(++count_));
     }
 
     ~TraceScope() {
-        static TraceStat &stat{TraceStat::Get()};
-        stat.EndTraceScope();
+        RecordStore::Get().EndTraceScope();
+    }
+
+    template <typename F2>
+    void Trace(const char *label, const char *file, int line, F2 &&) {  // 做成类成员函数更优
+        static unsigned char count{0};
+        if (++count != count_) {
+            Throw(count_, count, label, file, line);
+        }
+        ONCE() {
+            RecordStore::Get().SetLocation(label, file, line);
+        }
+        RecordStore::Get().UpdateRecord(&count);
     }
 
 private:
-    static inline size_t count_{0};
+    static inline unsigned char count_{0};
 };
 
 template <typename F>
 auto MakeTraceScope(F &&) {
     return TraceScope<F>{};
-}
-
-template <typename F>
-void Trace(const char *label, const char *file, int line, F &&) {
-    static TraceStat &stat{TraceStat::Get()};
-    static bool location_set{false};
-    if (!location_set) {
-        stat.SetLocation(label, file, line);
-        location_set = true;
-    }
-    stat.UpdateRecord(&location_set);
 }
 }
