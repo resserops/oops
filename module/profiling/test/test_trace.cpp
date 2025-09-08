@@ -49,7 +49,7 @@ TEST(ProfilingTrace, TraceBase) {
         TRACE(step3);
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-    TRACE_PRINT();
+    RecordStore::Get().GetRecordTable().Output(std::cout);
 }
 
 void Func() {
@@ -59,7 +59,7 @@ void Func() {
 }
 
 TEST(ProfilingTrace, BAD) {
-    TraceStat::Get().Clear();
+    RecordStore::Get().Clear();
     TRACE_SCOPE();
     Func();
     for (size_t i = 0; i < 1; ++i) {
@@ -69,14 +69,12 @@ TEST(ProfilingTrace, BAD) {
     }
     Func();
     TRACE(DONE);
-    TRACE_PRINT();
+    RecordStore::Get().GetRecordTable().Output(std::cout);
 }
 
-
 TEST(ProfilingTrace, InternalCost) {
-    TraceStat::Get().Clear();
+    RecordStore::Get().Clear();
     constexpr size_t LOOP_N{10};
-    int k{0};
     TRACE_SCOPE();
     for (size_t i{0}; i < LOOP_N; ++i) {
         TRACE_SCOPE();
@@ -84,6 +82,58 @@ TEST(ProfilingTrace, InternalCost) {
         TRACE(step1);
         TRACE(step2);
     }
-    TRACE_PRINT();
-    std::cout << k << std::endl;
+    RecordStore::Get().GetRecordTable().Output(std::cout);
+}
+
+TEST(ProfilingTrace, Bad) {
+    RecordStore::Get().Clear();
+    constexpr size_t LOOP_N{10};
+    int k{0};
+    TRACE_SCOPE();
+    for (size_t i=0;i<2;++i) {
+        try {
+            TRACE(step1);
+        } catch (...) {
+            EXPECT_EQ(i, 1);
+            break;
+        }
+        EXPECT_EQ(i, 0);
+    }
+}
+
+TEST(ProfilingTrace, Bad2) {
+    RecordStore::Get().Clear();
+    constexpr size_t LOOP_N{10};
+    int k{0};
+    for (size_t i=0;i<10;++i) {
+        TRACE_SCOPE();
+        if (i % 2 == 0) {
+            TRACE(step_n0);
+        } else {
+            try {
+                TRACE(step_n1);
+            } catch (...) {
+                EXPECT_EQ(i, 1);
+                break;
+            }
+        }
+    }
+}
+
+TEST(ProfilingTrace, Bad3) {
+    RecordStore::Get().Clear();
+    constexpr size_t LOOP_N{10};
+    int k{0};
+    for (size_t i=0;i<10;++i) {
+        TRACE_SCOPE();
+        if (i % 2 == 0) {
+            try {
+                TRACE(step1);
+            } catch (...) {
+                EXPECT_EQ(i, 2);
+                break;
+            }
+        }
+        EXPECT_LT(i, 2);
+    }
 }
