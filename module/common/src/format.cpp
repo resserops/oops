@@ -58,7 +58,8 @@ FTable &FTable::SetProp(size_t j, const Prop &prop) {
 
 void FTable::Output(std::ostream &out) const {
     std::vector<size_t> col_width_vec;
-    for (const auto &row : table_) {
+    for (size_t i{0}; i < table_.size() - 1; ++i) {
+        auto &row{table_[i]};
         for (size_t j{0}; j < row.size(); ++j) {
             for (size_t n{col_width_vec.size()}; n < j + 1; ++n) {
                 const Prop &prop{GetProp(n)};
@@ -69,7 +70,8 @@ void FTable::Output(std::ostream &out) const {
             col_width_vec[j] = std::max(col_width_vec[j], row[j].size() + prop.left_margin + prop.right_margin);
         }
     }
-    for (const auto &row : table_) {
+    for (size_t i{0}; i < table_.size() - 1; ++i) {
+        auto &row{table_[i]};
         for (size_t j{0}; j < row.size(); ++j) {
             const Prop &prop{GetProp(j)};
             size_t space_num{col_width_vec[j] - row[j].size()};
