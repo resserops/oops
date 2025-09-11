@@ -10,25 +10,22 @@
 #include <stack>
 #include <iomanip>
 #include <sstream>
+#include <functional>
+
+#include "oops/trace_def.h"
+#include "oops/trace_detail.h"
 
 #include "oops/once.h"
 #include "oops/str.h"
 #include "oops/format.h"
 #include "oops/range.h"
 
-#include "oops/trace_def.h"
-
 namespace oops {
+// TARCE mask参数配置
 constexpr size_t MEM = 1;
+constexpr size_t MEM_ONCE = 1ul << 1;
 
-template <typename T, std::ostream &Stream = std::cout>
-struct StreamOut {
-    void operator() (const T &t) {
-        std::cout << t;
-    }
-};
-
-
+// 全局配置
 class TraceConfig {
 public:
     static auto& Get() {
@@ -45,6 +42,7 @@ private:
     bool anonymous_{false};
 };
 
+// Record数据结构，用于存储及输出、打印
 struct Location {   // 打点位置相关
     Location() = default;
     Location(const char *label, const char *file, int line) : label{label}, file{file}, line{line} {}
@@ -125,22 +123,24 @@ struct Record : public Sample {
 
 struct RecordTable {
     void Append(const Record &log) {
-        table_.push_back(log);
+        records.push_back(log);
     }
 
     void Output(std::ostream &out) const;
 
     TimeInterval root_itv;
     TimeInterval entry_itv;
-    std::vector<Record> table_;
+    std::vector<Record> records;
 };
+std::ostream &operator <<(std::ostream &out, const RecordTable &sample);
 
+// 存储所有Trace产生的Record，组织依赖关系
 class RecordStore {
-    class RecordNode {
+    class Node {
         friend class RecordStore;
 
     public:
-        RecordNode(const void *location_id) : location_id_{location_id} {}
+        Node(const void *location_id) : location_id_{location_id} {}
 
         void UpdateTime(const TimeInterval &time_inverval);
         void UpdateMemory(const Memory &memory);
@@ -154,7 +154,7 @@ class RecordStore {
         size_t count_{};
 
         // 统计数据成员
-        TimeInterval data_;
+        TimeInterval time_inverval_;
         Memory memory_;
 
         std::vector<int> children_;
@@ -165,37 +165,14 @@ public:
         static RecordStore &stat{GetImpl()};
         return stat;
     }
-
     void Clear();
-    void SetLocation(const char *label, const char *file, int line);
     
-    void StartTraceScope(const void *location_id);
-    void EndTraceScope();
+    void SetLocation(const char *label, const char *file, int line);
+    void TraceScopeBegin(const void *location_id);
+    void TraceScopeEnd();
 
-    template<size_t Mask, typename SampleHandler>
-    void UpdateRecord(const void *location_id) {
-        // 更新旧节点
-        RecordNode &node{nodes_[node_stack_.back()]};
-        TimePoint time_point{TimePoint::Get()};
-        // assert(LocationStore::Get().Contains(node.location_id_));   // 更新数据的节点对应的location_id没有设置过location，可能是TRACE_SCOPE for{ TRACE }场景，外层应该抛异常
-        TimeInterval itv{time_point - scope_stack_.top()};
-        node.UpdateTime(itv);
-        scope_stack_.top() = time_point;
-        
-        if constexpr (Mask & MEM) {
-            node.UpdateMemory(Memory::Get());
-        }
-        
-        if constexpr (!std::is_same_v<SampleHandler, void>) {
-            SampleHandler{}({node.GetLocation(), itv, node.memory_});
-        }
-
-        // 创建新节点
-        assert(node_stack_.size() > 1);
-        int parent_i{node_stack_[node_stack_.size() - 2]};
-        int node_i{GetOrCreateNode(parent_i, location_id)};
-        node_stack_.back() = node_i;
-    }
+    void Trace(const void *location_id, size_t mask);
+    void Trace(const void *location_id, const detail::TraceVaArgs &va_args);
 
     RecordTable GetRecordTable(const char *label) const;
     RecordTable GetRecordTable() const;
@@ -204,21 +181,16 @@ private:
     static RecordStore& GetImpl();  // 避免跨编译单元产生多实例
 
     int GetOrCreateNode(int parent_i, const void *location_id);
-    TimeInterval GetRecordTableImpl(int node_i, size_t depth, RecordTable &record_table) const;
-    Record GetRecord(const RecordNode &node, size_t depth) const;
-    Record GetRecord(const TimeInterval &itv, size_t depth) const;
+    void SetupSameLevelNode(const void *location_id);
+
     TimeInterval GetRootItv() const;
+    TimeInterval GetRecordTableImpl(int node_i, size_t depth, RecordTable &record_table) const;
+    Record GetRecord(const Node &node, size_t depth) const;
+    Record GetRecord(const TimeInterval &itv, size_t depth) const;
 
-    std::vector<RecordNode> nodes_{{nullptr, 0, 0}};
+    std::vector<Node> nodes_{{nullptr, 0, 0}};
     std::vector<int> node_stack_{0};
-    std::stack<TimePoint> scope_stack_;     // 维护当前Scope的第一个TimePoint，每次Trace，读取并刷新TimePoint
-    std::stack<size_t> count_stack_;        // 维护当前Scope的计数，
-};
-
-template <size_t M = 0, typename SH = void>
-struct TraceParams {
-    using SampleHandler = SH;
-    static constexpr size_t MASK{M};
+    std::stack<TimePoint> scope_stack_;     // 维护当前Scope前一个TimePoint，每次Trace，读取并刷新TimePoint
 };
 
 class TraceScopeBase {
@@ -227,35 +199,49 @@ protected:
 };
 
 // Scope为粒度，每层统计作用域
-template <typename F>
+template <typename>
 class TraceScope : public TraceScopeBase {
 public:
     TraceScope() {
-        RecordStore::Get().StartTraceScope(&(++count_));
+        RecordStore::Get().TraceScopeBegin(&(++count_));
     }
 
     ~TraceScope() {
-        RecordStore::Get().EndTraceScope();
+        RecordStore::Get().TraceScopeEnd();
     }
 
-    template <typename TraceParams, typename F2>
-    void Trace(const char *label, const char *file, int line, F2 &&) {  // 做成类成员函数以便在编译器找到部分SCOPE和TRACE不匹配的问题
-        static unsigned char count{0};
-        if (++count != count_) {
+    template <typename>
+    void TraceImpl(unsigned char count, const char *label, const char *file, int line) {
+        if (count != count_) {
             ThrowCountMismatchException(count_, count, label, file, line);
         }
-        ONCE() {
+        static bool location_set{false};
+        if (!location_set) {
             RecordStore::Get().SetLocation(label, file, line);
+            location_set = true;
         }
-        RecordStore::Get().UpdateRecord<TraceParams::MASK, typename TraceParams::SampleHandler>(&count);
+    }
+
+    template <typename Lambda>
+    void Trace(Lambda &&, const char *label, const char *file, int line, size_t mask) {  // 做成类成员函数以便在编译器找到部分SCOPE和TRACE不匹配的问题
+        static unsigned char count{0};
+        TraceImpl<Lambda>(++count, label, file, line);
+        RecordStore::Get().Trace(&count, mask);
+    }
+
+    template <typename Lambda>
+    void Trace(Lambda &&, const char *label, const char *file, int line, const detail::TraceVaArgs &va_args) {
+        static unsigned char count{0};
+        TraceImpl<Lambda>(++count, label, file, line);
+        RecordStore::Get().Trace(&count, va_args);
     }
 
 private:
     static inline unsigned char count_{0};
 };
 
-template <typename F>
-auto MakeTraceScope(F &&) {
-    return TraceScope<F>{};
+template <typename Lambda>
+auto MakeTraceScope(Lambda &&) {
+    return TraceScope<Lambda>{};
 }
 }

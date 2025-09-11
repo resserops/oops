@@ -31,12 +31,17 @@ std::ostream &operator <<(std::ostream &out, const Sample &sample) {
 void RecordTable::Output(std::ostream &out) const {
     FTable ftable;
     ftable.AppendRow("Lable", "Count", "Time (s)", "Time (%)", "RSS (G)", "HWM (G)", "Swap (G)", "Location");
-    for (const auto &log : table_) {
-        std::string time_ratio_str{ToStr(FFloatPoint{100 * log.GetTime() / root_itv.GetTime()}) + "%"};
-        std::string time_str{ToStr(FFloatPoint{log.GetTime()}.SetPrecision(3))};
-        ftable.AppendRow(StrRepeat("  ", log.depth) + log.GetLabelStr(), log.count, time_str, time_ratio_str, log.GetRssGiB(), log.GetHwmGiB(), log.GetSwapGiB(), log.GetLocationStr());
+    for (const auto &record : records) {
+        std::string time_ratio_str{ToStr(FFloatPoint{100 * record.GetTime() / root_itv.GetTime()}) + "%"};
+        std::string time_str{ToStr(FFloatPoint{record.GetTime()}.SetPrecision(3))};
+        ftable.AppendRow(StrRepeat("  ", record.depth) + record.GetLabelStr(), record.count, time_str, time_ratio_str, record.GetRssGiB(), record.GetHwmGiB(), record.GetSwapGiB(), record.GetLocationStr());
     }
     out << ftable;
+}
+
+std::ostream &operator <<(std::ostream &out, const RecordTable &record_table) {
+    record_table.Output(out);
+    return out;
 }
 
 // LocationStore
@@ -78,17 +83,17 @@ private:
     std::deque<Location> locations_;    // 保证地址稳定，只允许后端插入
 };
 
-// RecordStore::RecordNode
-void RecordStore::RecordNode::UpdateTime(const TimeInterval &time_inverval) {
-    data_ += time_inverval;
+// RecordStore::Node
+void RecordStore::Node::UpdateTime(const TimeInterval &time_inverval) {
+    time_inverval_ += time_inverval;
     ++count_;
 }
 
-void RecordStore::RecordNode::UpdateMemory(const Memory &memory) {
+void RecordStore::Node::UpdateMemory(const Memory &memory) {
     memory_ = memory;
 }
 
-Location RecordStore::RecordNode::GetLocation() const {
+Location RecordStore::Node::GetLocation() const {
     Location location{LocationStore::Get().GetLocation(location_id_)};
     if (TraceConfig::Get().GetAnonymous()) {
         location.label = nullptr;
@@ -98,7 +103,7 @@ Location RecordStore::RecordNode::GetLocation() const {
     return location;
 }
 
-bool RecordStore::RecordNode::Empty() const {
+bool RecordStore::Node::Empty() const {
     return count_ == 0;
 }
 
@@ -114,9 +119,9 @@ void RecordStore::Clear() { // Clear完后又执行到执行过的scope，是否
 }
 
 int RecordStore::GetOrCreateNode(int parent_i, const void *location_id) {
-    RecordNode &parent{nodes_[parent_i]};
+    Node &parent{nodes_[parent_i]};
     for (int node_i : parent.children_) {
-        RecordNode &node{nodes_[node_i]};
+        Node &node{nodes_[node_i]};
         if (node.location_id_ == location_id) {
             return node_i;
         }
@@ -132,24 +137,73 @@ void RecordStore::SetLocation(const char *label, const char *file, int line) {
     LocationStore::Get().SetLocation(location_id, {label, file, line});
 }
 
-void RecordStore::StartTraceScope(const void *location_id) {
+void RecordStore::TraceScopeBegin(const void *location_id) {
     // 压入初始时间点
     scope_stack_.push(TimePoint::Get());
 
-    // 创建新节点
+    // 创建新一层节点
     assert(!node_stack_.empty());
     int parent_i{node_stack_.back()};
     int node_i{GetOrCreateNode(parent_i, location_id)};
     node_stack_.push_back(node_i);    
 }
 
-void RecordStore::EndTraceScope() {
+void RecordStore::TraceScopeEnd() {
     scope_stack_.pop();
     node_stack_.pop_back();
 }
 
-Record RecordStore::GetRecord(const RecordNode &node, size_t depth) const {
-    Record record{GetRecord(node.data_, depth)};
+void RecordStore::Trace(const void *location_id, size_t mask) {
+    // 更新旧节点
+    Node &node{nodes_[node_stack_.back()]};
+    assert(LocationStore::Get().Contains(node.location_id_));   // 更新数据的节点对应的location_id没有设置过location，可能是TRACE_SCOPE for{ TRACE }场景，外层应该抛异常
+    
+    // 更新时间
+    TimePoint time_point{TimePoint::Get()};
+    node.UpdateTime(time_point - scope_stack_.top());
+    scope_stack_.top() = time_point;
+    
+    // 更新内存
+    if (mask & MEM) {
+        node.UpdateMemory(Memory::Get());
+    }
+
+    // 创建新节点
+    SetupSameLevelNode(location_id);
+}
+
+void RecordStore::Trace(const void *location_id, const detail::TraceVaArgs &va_args) {
+    // 更新旧节点
+    Node &node{nodes_[node_stack_.back()]};
+    assert(LocationStore::Get().Contains(node.location_id_));
+    
+    // 更新时间
+    TimePoint time_point{TimePoint::Get()};
+    TimeInterval itv{time_point - scope_stack_.top()};
+    node.UpdateTime(itv);
+    scope_stack_.top() = time_point;
+    
+    // 更新内存
+    if (va_args.mask & MEM) {
+        node.UpdateMemory(Memory::Get());
+    }
+
+    // 构造并处理Sample
+    va_args.sample_handler({node.GetLocation(), itv, node.memory_});
+
+    // 创建新节点
+    SetupSameLevelNode(location_id);
+}
+
+void RecordStore::SetupSameLevelNode(const void *location_id) {
+    assert(node_stack_.size() > 1);
+    int parent_i{node_stack_[node_stack_.size() - 2]};
+    int node_i{GetOrCreateNode(parent_i, location_id)};
+    node_stack_.back() = node_i;
+}
+
+Record RecordStore::GetRecord(const Node &node, size_t depth) const {
+    Record record{GetRecord(node.time_inverval_, depth)};
     static_cast<Memory &>(record) = node.memory_;
     static_cast<Location &>(record) = node.GetLocation();
     record.count = node.count_;
@@ -169,7 +223,7 @@ RecordTable RecordStore::GetRecordTable(const char *) const {
 }
 
 TimeInterval RecordStore::GetRecordTableImpl(int node_i, size_t depth, RecordTable &record_table) const {
-    const RecordNode &node{nodes_[node_i]};
+    const Node &node{nodes_[node_i]};
     auto traverse_children = [&] (size_t depth) {
         TimeInterval child_itv;
         for (int child_i : node.children_) {
@@ -182,9 +236,9 @@ TimeInterval RecordStore::GetRecordTableImpl(int node_i, size_t depth, RecordTab
     }
     record_table.Append(GetRecord(node, depth));
     if (!node.children_.empty()) {
-        record_table.Append(GetRecord(node.data_ - traverse_children(depth + 1), depth + 1)); 
+        record_table.Append(GetRecord(node.time_inverval_ - traverse_children(depth + 1), depth + 1)); 
     }
-    return node.data_;
+    return node.time_inverval_;
 }
 
 RecordTable RecordStore::GetRecordTable() const {
@@ -199,7 +253,7 @@ RecordTable RecordStore::GetRecordTable() const {
 TimeInterval RecordStore::GetRootItv() const {
     TimeInterval root_itv;
     for (int node_i : nodes_[0].children_) {
-        root_itv += nodes_[node_i].data_;
+        root_itv += nodes_[node_i].time_inverval_;
     }
     return root_itv;
 }

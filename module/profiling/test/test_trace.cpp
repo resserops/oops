@@ -40,11 +40,14 @@ TEST(ProfilingTrace, TraceBase) {
             if (i % 3 == 0) {
                 TRACE_SCOPE();
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                TRACE(step3-1, MEM, StreamOut<Record, std::cerr>);
+
+                int a = 10;
+
+                TRACE(step3-1, MEM, [&](const Sample &sample){ std::cout << sample << " " << a << std::endl; });
             } else {
                 TRACE_SCOPE();
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                TRACE(step3-2, MEM, StreamOut<Record>);
+                TRACE(step3-2, MEM);
             }
         }
         TRACE(step3);
