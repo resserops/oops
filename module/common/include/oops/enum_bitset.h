@@ -1,0 +1,37 @@
+#pragma once
+
+#include <bitset>
+
+namespace oops {
+template <typename E>
+class EnumBitset : public ::std::bitset<static_cast<::std::underlying_type_t<E>>(E::COUNT)> {
+public:
+    static_assert(::std::is_enum_v<E>);
+    using UnderlyingType = ::std::underlying_type_t<E>;
+    static constexpr UnderlyingType COUNT{static_cast<UnderlyingType>(E::COUNT)};
+    using Bitset = ::std::bitset<COUNT>;
+    static constexpr Bitset ONE{1};
+
+    using Bitset::bitset;
+    using Bitset::operator|=;
+
+    constexpr EnumBitset(const Bitset &rhs) : Bitset{rhs} {}
+    EnumBitset(E e) : Bitset{ONE << static_cast<UnderlyingType>(e)} {}
+    EnumBitset& operator|= (E e) {
+        *(this) |= EnumBitset{e};
+        return *this;
+    }
+};
+
+template <typename E>
+typename std::enable_if<std::is_enum<E>::value, EnumBitset<E>>::type
+operator|(const EnumBitset<E> &lhs, const E rhs) {
+    return lhs | EnumBitset{rhs};
+}
+
+template <typename E>
+typename std::enable_if<std::is_enum<E>::value, EnumBitset<E>>::type
+operator|(const E lhs, const E rhs) {
+    return EnumBitset{lhs} | EnumBitset{rhs};
+}
+}
