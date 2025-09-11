@@ -1,13 +1,40 @@
 #include "oops/trace.h"
 
+#include "oops/system_info.h"
+
 namespace oops {
+// TraceConfig
+TraceConfig& TraceConfig::GetImpl() {
+    static TraceConfig instance;
+    return instance;
+}
+
+// Metrics
+Memory Memory::Get() {
+    Memory memory;
+    auto status_info{status::Get(status::Field::VM_RSS | status::Field::VM_HWM | status::Field::VM_SWAP)};
+    memory.rss = *status_info.vm_rss;
+    memory.hwm = *status_info.vm_hwm;
+    memory.swap = *status_info.vm_swap;
+    return memory;
+}
+
+std::ostream &operator <<(std::ostream &out, const Sample &sample) {
+    out << sample.GetLabelStr() << " " << sample.GetLocationStr() << std::endl;
+    out << "Time: " << sample.GetTime() << " s" << std::endl;
+    out << "RSS: " << sample.GetRssGiB() << " GiB" << std::endl;
+    out << "HWM: " << sample.GetHwmGiB() << " GiB" << std::endl;
+    out << "Swap: " << sample.GetSwapGiB() << " GiB" << std::endl;
+    return out;
+}
+
 void RecordTable::Output(std::ostream &out) const {
     FTable ftable;
-    ftable.AppendRow("Lable", "Count", "Time (s)", "Time (%)", "Location");
+    ftable.AppendRow("Lable", "Count", "Time (s)", "Time (%)", "RSS (G)", "HWM (G)", "Swap (G)", "Location");
     for (const auto &log : table_) {
         std::string time_ratio_str{ToStr(FFloatPoint{100 * log.GetTime() / root_itv.GetTime()}) + "%"};
         std::string time_str{ToStr(FFloatPoint{log.GetTime()}.SetPrecision(3))};
-        ftable.AppendRow(StrRepeat("  ", log.depth) + log.GetLabelStr(), log.count, time_str, time_ratio_str, log.GetLocationStr());
+        ftable.AppendRow(StrRepeat("  ", log.depth) + log.GetLabelStr(), log.count, time_str, time_ratio_str, log.GetRssGiB(), log.GetHwmGiB(), log.GetSwapGiB(), log.GetLocationStr());
     }
     out << ftable;
 }
@@ -47,7 +74,7 @@ private:
     LocationStore() = default;
     ~LocationStore() = default;
 
-    std::unordered_map<const void *, Location *> location_map_;
+    std::unordered_map<const void *, Location *> location_map_; // 上个位置的标识void *，LOCATION信息绑定，永久存在不可清除，前提条件，每个scope的到代码块执行顺序是固定，串行的
     std::deque<Location> locations_;    // 保证地址稳定，只允许后端插入
 };
 
@@ -77,8 +104,8 @@ bool RecordStore::RecordNode::Empty() const {
 
 // RecordStore
 RecordStore& RecordStore::GetImpl() {
-    static RecordStore prof_stat;
-    return prof_stat;
+    static RecordStore instance;
+    return instance;
 }
 
 void RecordStore::Clear() { // Clear完后又执行到执行过的scope，是否会有问题？
@@ -121,21 +148,6 @@ void RecordStore::EndTraceScope() {
     node_stack_.pop_back();
 }
 
-void RecordStore::UpdateRecord(const void *location_id) {
-    // 更新旧节点
-    RecordNode &node{nodes_[node_stack_.back()]};
-    TimePoint sample{TimePoint::Get()};
-    assert(LocationStore::Get().Contains(node.location_id_));   // 更新数据的节点对应的location_id没有设置过location，可能是TRACE_SCOPE for{ TRACE }场景，外层应该抛异常
-    node.UpdateTime(sample - scope_stack_.top());
-    scope_stack_.top() = sample;
-
-    // 创建新节点
-    assert(node_stack_.size() > 1);
-    int parent_i{node_stack_[node_stack_.size() - 2]};
-    int node_i{GetOrCreateNode(parent_i, location_id)};
-    node_stack_.back() = node_i;
-}
-
 Record RecordStore::GetRecord(const RecordNode &node, size_t depth) const {
     Record record{GetRecord(node.data_, depth)};
     static_cast<Memory &>(record) = node.memory_;
@@ -152,7 +164,7 @@ Record RecordStore::GetRecord(const TimeInterval &itv, size_t depth) const {
     return record;
 }
 
-RecordTable RecordStore::GetRecordTable(const char *label) const {
+RecordTable RecordStore::GetRecordTable(const char *) const {
     return GetRecordTable();
 }
 
@@ -191,6 +203,16 @@ TimeInterval RecordStore::GetRootItv() const {
     }
     return root_itv;
 }
-}
 
-// 上个位置的VOID *，LOCATION信息绑定，永久存在不可清除，前提条件，每个scope的到代码块执行顺序是固定，串行的
+void TraceScopeBase::ThrowCountMismatchException(unsigned char scope_count, unsigned char trace_count, const char *label, const char *file, int line) {
+    std::ostringstream oss;
+    oss << "TRACE " << label << " missing TRACE_SCOPE declaration in SAME block scope. ";
+    if (scope_count < trace_count) {
+        oss << "TRACE_SCOPE count " << static_cast<int>(scope_count) << " < TRACE count " << static_cast<int>(trace_count) << ". Possible cause: TRACE_SCOPE for { TRACE }. ";
+    } else {
+        oss << "TRACE_SCOPE count " << static_cast<int>(scope_count) << " > TRACE count " << static_cast<int>(trace_count) << ". Possible cause: TRACE_SCOPE if { TRACE }. ";
+    }
+    oss << "(" << file << ":" << line << ")";
+    throw std::runtime_error(oss.str());  
+}
+}

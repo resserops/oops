@@ -21,6 +21,7 @@ void microsleep_mono(long microseconds) {
 }
 
 TEST(ProfilingTrace, TraceBase) {
+    TraceConfig::Get().SetAnonymous();
     constexpr size_t LOOP_N{10};
     {
         TRACE_SCOPE();
@@ -39,11 +40,11 @@ TEST(ProfilingTrace, TraceBase) {
             if (i % 3 == 0) {
                 TRACE_SCOPE();
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                TRACE(step3-1);
+                TRACE(step3-1, MEM, StreamOut<Record, std::cerr>);
             } else {
                 TRACE_SCOPE();
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                TRACE(step3-2);
+                TRACE(step3-2, MEM, StreamOut<Record>);
             }
         }
         TRACE(step3);
@@ -87,8 +88,6 @@ TEST(ProfilingTrace, InternalCost) {
 
 TEST(ProfilingTrace, Bad) {
     RecordStore::Get().Clear();
-    constexpr size_t LOOP_N{10};
-    int k{0};
     TRACE_SCOPE();
     for (size_t i=0;i<2;++i) {
         try {
@@ -103,8 +102,6 @@ TEST(ProfilingTrace, Bad) {
 
 TEST(ProfilingTrace, Bad2) {
     RecordStore::Get().Clear();
-    constexpr size_t LOOP_N{10};
-    int k{0};
     for (size_t i=0;i<10;++i) {
         TRACE_SCOPE();
         if (i % 2 == 0) {
@@ -122,8 +119,6 @@ TEST(ProfilingTrace, Bad2) {
 
 TEST(ProfilingTrace, Bad3) {
     RecordStore::Get().Clear();
-    constexpr size_t LOOP_N{10};
-    int k{0};
     for (size_t i=0;i<10;++i) {
         TRACE_SCOPE();
         if (i % 2 == 0) {

@@ -10,7 +10,6 @@
 #include <stack>
 #include <iomanip>
 #include <sstream>
-#include <bitset>
 
 #include "oops/once.h"
 #include "oops/str.h"
@@ -20,51 +19,30 @@
 #include "oops/trace_def.h"
 
 namespace oops {
+constexpr size_t MEM = 1;
+
+template <typename T, std::ostream &Stream = std::cout>
+struct StreamOut {
+    void operator() (const T &t) {
+        std::cout << t;
+    }
+};
+
+
 class TraceConfig {
 public:
     static auto& Get() {
-        static TraceConfig trace_conf;
-        return trace_conf;
+        static auto &instance{GetImpl()};
+        return instance;
     }
 
     void SetAnonymous(bool anonymous = true) { anonymous_ = anonymous; }
     bool GetAnonymous() const { return anonymous_; }
 
 private:
+    static TraceConfig& GetImpl();
+
     bool anonymous_{false};
-};
-
-struct TimeInterval {
-    TimeInterval &operator+=(const TimeInterval &rhs) {
-        time += rhs.time;
-        return *this;
-    }
-    TimeInterval operator-(const TimeInterval &rhs) const {
-        TimeInterval itv;
-        itv.time = time - rhs.time;
-        return itv;
-    }
-    double GetTime() const {
-        return std::chrono::duration<double>(time).count();
-    }
-
-    std::chrono::high_resolution_clock::duration time{};
-};
-
-struct TimePoint {
-    static TimePoint Get() {
-        TimePoint trace_point;
-        trace_point.time_point = std::chrono::high_resolution_clock::now();
-        return trace_point;
-    }
-
-    TimeInterval operator-(const TimePoint &rhs) const {
-        TimeInterval data;
-        data.time = time_point - rhs.time_point;
-        return data;
-    }
-    
-    std::chrono::high_resolution_clock::time_point time_point;
 };
 
 struct Location {   // 打点位置相关
@@ -94,13 +72,53 @@ struct Location {   // 打点位置相关
     int anonymous_id{-1};
 };
 
+struct TimePoint {
+    static TimePoint Get() {
+        TimePoint trace_point;
+        trace_point.time_point = std::chrono::high_resolution_clock::now();
+        return trace_point;
+    }
+    
+    std::chrono::high_resolution_clock::time_point time_point;
+};
+
+struct TimeInterval {
+    TimeInterval &operator+=(const TimeInterval &rhs) {
+        time += rhs.time;
+        return *this;
+    }
+    TimeInterval operator-(const TimeInterval &rhs) const {
+        TimeInterval itv;
+        itv.time = time - rhs.time;
+        return itv;
+    }
+    double GetTime() const {
+        return std::chrono::duration<double>(time).count();
+    }
+
+    std::chrono::high_resolution_clock::duration time{};
+};
+
+inline TimeInterval operator-(const TimePoint &lhs, const TimePoint &rhs) {
+    return {lhs.time_point - rhs.time_point};
+}
+
 struct Memory {
+    static Memory Get();
+    
+    double GetRssGiB() const { return 1.0 * rss / 1024 / 1024; }
+    double GetHwmGiB() const { return 1.0 * hwm / 1024 / 1024; }
+    double GetSwapGiB() const { return 1.0 * swap / 1024 / 1024; }
+
     size_t rss{};
     size_t hwm{};
     size_t swap{};
 };
 
-struct Record : public Location, TimeInterval, Memory {
+struct Sample : public Location, TimeInterval, Memory {};
+std::ostream &operator <<(std::ostream &out, const Sample &sample);
+
+struct Record : public Sample {
     size_t count{}; // Node中获取
     size_t depth{}; // 递归时获取
 };
@@ -126,7 +144,7 @@ class RecordStore {
 
         void UpdateTime(const TimeInterval &time_inverval);
         void UpdateMemory(const Memory &memory);
-        
+
         Location GetLocation() const;
         bool Empty() const;
 
@@ -143,7 +161,7 @@ class RecordStore {
     };
 
 public:
-    static RecordStore& Get() {
+    static auto& Get() {
         static RecordStore &stat{GetImpl()};
         return stat;
     }
@@ -153,13 +171,38 @@ public:
     
     void StartTraceScope(const void *location_id);
     void EndTraceScope();
-    void UpdateRecord(const void *location_id);
+
+    template<size_t Mask, typename SampleHandler>
+    void UpdateRecord(const void *location_id) {
+        // 更新旧节点
+        RecordNode &node{nodes_[node_stack_.back()]};
+        TimePoint time_point{TimePoint::Get()};
+        // assert(LocationStore::Get().Contains(node.location_id_));   // 更新数据的节点对应的location_id没有设置过location，可能是TRACE_SCOPE for{ TRACE }场景，外层应该抛异常
+        TimeInterval itv{time_point - scope_stack_.top()};
+        node.UpdateTime(itv);
+        scope_stack_.top() = time_point;
+        
+        if constexpr (Mask & MEM) {
+            node.UpdateMemory(Memory::Get());
+        }
+        
+        if constexpr (!std::is_same_v<SampleHandler, void>) {
+            SampleHandler{}({node.GetLocation(), itv, node.memory_});
+        }
+
+        // 创建新节点
+        assert(node_stack_.size() > 1);
+        int parent_i{node_stack_[node_stack_.size() - 2]};
+        int node_i{GetOrCreateNode(parent_i, location_id)};
+        node_stack_.back() = node_i;
+    }
 
     RecordTable GetRecordTable(const char *label) const;
     RecordTable GetRecordTable() const;
 
 private:
-    static RecordStore& GetImpl();
+    static RecordStore& GetImpl();  // 避免跨编译单元产生多实例
+
     int GetOrCreateNode(int parent_i, const void *location_id);
     TimeInterval GetRecordTableImpl(int node_i, size_t depth, RecordTable &record_table) const;
     Record GetRecord(const RecordNode &node, size_t depth) const;
@@ -172,19 +215,15 @@ private:
     std::stack<size_t> count_stack_;        // 维护当前Scope的计数，
 };
 
+template <size_t M = 0, typename SH = void>
+struct TraceParams {
+    using SampleHandler = SH;
+    static constexpr size_t MASK{M};
+};
+
 class TraceScopeBase {
 protected:
-    void Throw(unsigned char scope_count, unsigned char trace_count, const char *label, const char *file, int line) {
-        std::ostringstream oss;
-        oss << "TRACE " << label << " missing TRACE_SCOPE declaration in SAME block scope. ";
-        if (scope_count < trace_count) {
-            oss << "TRACE_SCOPE count " << static_cast<int>(scope_count) << " < TRACE count " << static_cast<int>(trace_count) << ". Possible cause: TRACE_SCOPE for { TRACE }. ";
-        } else {
-            oss << "TRACE_SCOPE count " << static_cast<int>(scope_count) << " > TRACE count " << static_cast<int>(trace_count) << ". Possible cause: TRACE_SCOPE if { TRACE }. ";
-        }
-        oss << "(" << file << ":" << line << ")";
-        throw std::runtime_error(oss.str());  
-    }
+    void ThrowCountMismatchException(unsigned char scope_count, unsigned char trace_count, const char *label, const char *file, int line);
 };
 
 // Scope为粒度，每层统计作用域
@@ -199,16 +238,16 @@ public:
         RecordStore::Get().EndTraceScope();
     }
 
-    template <typename F2>
-    void Trace(const char *label, const char *file, int line, F2 &&) {  // 做成类成员函数更优
+    template <typename TraceParams, typename F2>
+    void Trace(const char *label, const char *file, int line, F2 &&) {  // 做成类成员函数以便在编译器找到部分SCOPE和TRACE不匹配的问题
         static unsigned char count{0};
         if (++count != count_) {
-            Throw(count_, count, label, file, line);
+            ThrowCountMismatchException(count_, count, label, file, line);
         }
         ONCE() {
             RecordStore::Get().SetLocation(label, file, line);
         }
-        RecordStore::Get().UpdateRecord(&count);
+        RecordStore::Get().UpdateRecord<TraceParams::MASK, typename TraceParams::SampleHandler>(&count);
     }
 
 private:
