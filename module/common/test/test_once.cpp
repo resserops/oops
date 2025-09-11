@@ -23,17 +23,47 @@ TEST(CommonOnce, Twice) {
     EXPECT_EQ(count, 2);
 }
 
-TEST(CommonOnce, Only) {
+TEST(CommonOnce, Only0) {
     int count{0};
     for (int i{0}; i < 100; ++i) {
-        ONLY(5 + 5) {
+        ONLY(0) {
             ++count;
         }
     }
-    EXPECT_EQ(count, 10);
+    EXPECT_EQ(count, 0);
 }
 
-TEST(CommonOnce, Every) {
+TEST(CommonOnce, Only1) {
+    int count{0};
+    for (int i{0}; i < 100; ++i) {
+        ONLY(1) {
+            ++count;
+        }
+    }
+    EXPECT_EQ(count, 1);
+}
+
+TEST(CommonOnce, Only3) {
+    int count{0};
+    for (int i{0}; i < 100; ++i) {
+        ONLY(3) {
+            ++count;
+        }
+    }
+    EXPECT_EQ(count, 3);
+}
+
+TEST(CommonOnce, Every1) {
+    int count{0};
+    for (int i{0}; i < 100; ++i) {
+        EVERY(1) {
+            ++count;
+        }
+    }
+    EXPECT_EQ(count, 100);
+}
+
+TEST(CommonOnce, Every3) {
     int count{0};
     for (int i{0}; i < 100; ++i) {
         EVERY(3) {
