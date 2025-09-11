@@ -13,7 +13,7 @@
 
 // 定义TRACE
 #if OOPS_ENABLE_TRACE
-#define OOPS_TRACE(label, ...) oops_trace_scope__.Trace<::oops::TraceParams<__VA_ARGS__>>(#label, __FILE__, __LINE__, []{})
+#define OOPS_TRACE(label, ...) oops_trace_scope__.Trace([]{}, #label, __FILE__, __LINE__, ::oops::detail::ParseTraceVaArgs(__VA_ARGS__))
 #else
 #define OOPS_TRACE(label, ...) (void)0
 #endif
