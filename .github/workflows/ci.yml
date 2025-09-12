@@ -26,6 +26,12 @@ jobs:
           reporter: github-pr-check
           level: error
 
+      - name: Clang-format
+        uses: jidicula/clang-format-action@v4.15.0
+        with:
+          clang-format-version: 16
+          check-path: module
+
       - name: Install c++ build toolchain
         run: |
           sudo apt-get update
