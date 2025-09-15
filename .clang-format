@@ -1,2 +1,7 @@
-Language:     Cpp
 BasedOnStyle: LLVM
+
+AccessModifierOffset: -4
+AlignAfterOpenBracket: AlwaysBreak
+AlwaysBreakTemplateDeclarations: Yes
+ColumnLimit: 120
+IndentWidth: 4

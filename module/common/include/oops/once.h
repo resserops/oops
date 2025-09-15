@@ -24,47 +24,59 @@
 
 namespace oops {
 namespace detail {
-template <size_t N> struct Only {
-  template <typename Lambda> static bool F(Lambda &&) {
-    static size_t count{0};
-    if (count < N) {
-      ++count;
-      return true;
+template <size_t N>
+struct Only {
+    template <typename Lambda>
+    static bool F(Lambda &&) {
+        static size_t count{0};
+        if (count < N) {
+            ++count;
+            return true;
+        }
+        return false;
     }
-    return false;
-  }
 };
 
-template <> struct Only<1> {
-  template <typename Lambda> static bool F(Lambda &&) {
-    static bool done{false};
-    if (!done) {
-      done = true;
-      return true;
+template <>
+struct Only<1> {
+    template <typename Lambda>
+    static bool F(Lambda &&) {
+        static bool done{false};
+        if (!done) {
+            done = true;
+            return true;
+        }
+        return false;
     }
-    return false;
-  }
 };
 
-template <> struct Only<0> {
-  template <typename Lambda> constexpr static bool F(Lambda &&) {
-    return false;
-  }
-};
-
-template <size_t N> struct Every {
-  static_assert(N > 0);
-  template <typename Lambda> static bool F(Lambda &&) {
-    static size_t count{0};
-    if (count >= N) {
-      count = 0;
+template <>
+struct Only<0> {
+    template <typename Lambda>
+    constexpr static bool F(Lambda &&) {
+        return false;
     }
-    return count++ == 0;
-  }
 };
 
-template <> struct Every<1> {
-  template <typename Lambda> constexpr static bool F(Lambda &&) { return true; }
+template <size_t N>
+struct Every {
+    static_assert(N > 0);
+    template <typename Lambda>
+    static bool F(Lambda &&) {
+        static size_t count{0};
+        if (count >= N) {
+            count = 0;
+        }
+        return count++ == 0;
+    }
+};
+
+template <>
+struct Every<1> {
+    template <typename Lambda>
+    constexpr static bool F(Lambda &&) {
+        return true;
+    }
 };
 } // namespace detail
 } // namespace oops

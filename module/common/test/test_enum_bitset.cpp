@@ -4,7 +4,7 @@
 using namespace oops;
 
 TEST(CommonEnumBitset, EnumBitset) {
-  enum class A { A1, A2, COUNT };
+    enum class A { A1, A2, COUNT };
 
-  constexpr EnumBitset<A> a{std::bitset<2>{}};
+    constexpr EnumBitset<A> a{std::bitset<2>{}};
 }
