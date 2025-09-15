@@ -10,6 +10,42 @@ TraceConfig &TraceConfig::GetImpl() {
 }
 
 // Metrics
+std::string Location::GetLabelStr() const {
+    if (anonymous_id < 0) {
+        return "other";
+    }
+    if (label == nullptr) {
+        return std::string{"trace_"} + std::to_string(anonymous_id);
+    }
+    return std::string{label} + " (" + std::to_string(anonymous_id) + ")";
+}
+
+std::string Location::GetLocationStr() const {
+    if (file == nullptr) {
+        return {};
+    }
+    return std::string{file} + ":" + std::to_string(line);
+}
+
+TimePoint TimePoint::Get() {
+    TimePoint trace_point;
+    trace_point.time_point = std::chrono::high_resolution_clock::now();
+    return trace_point;
+}
+
+TimeInterval &TimeInterval::operator+=(const TimeInterval &rhs) {
+    time += rhs.time;
+    return *this;
+}
+
+TimeInterval TimeInterval::operator-(const TimeInterval &rhs) const {
+    TimeInterval itv;
+    itv.time = time - rhs.time;
+    return itv;
+}
+
+TimeInterval operator-(const TimePoint &lhs, const TimePoint &rhs) { return {lhs.time_point - rhs.time_point}; }
+
 Memory Memory::Get() {
     Memory memory;
     auto status_info{status::Get(status::Field::VM_RSS | status::Field::VM_HWM | status::Field::VM_SWAP)};

@@ -47,22 +47,8 @@ struct Location { // 打点位置相关
     Location() = default;
     Location(const char *label, const char *file, int line) : label{label}, file{file}, line{line} {}
 
-    std::string GetLabelStr() const {
-        if (anonymous_id < 0) {
-            return "other";
-        }
-        if (label == nullptr) {
-            return std::string{"trace_"} + std::to_string(anonymous_id);
-        }
-        return std::string{label} + " (" + std::to_string(anonymous_id) + ")";
-    }
-
-    std::string GetLocationStr() const {
-        if (file == nullptr) {
-            return {};
-        }
-        return std::string{file} + ":" + std::to_string(line);
-    }
+    std::string GetLabelStr() const;
+    std::string GetLocationStr() const;
 
     const char *label{};
     const char *file{};
@@ -71,31 +57,19 @@ struct Location { // 打点位置相关
 };
 
 struct TimePoint {
-    static TimePoint Get() {
-        TimePoint trace_point;
-        trace_point.time_point = std::chrono::high_resolution_clock::now();
-        return trace_point;
-    }
-
-    std::chrono::high_resolution_clock::time_point time_point;
+    static TimePoint Get();
+    std::chrono::high_resolution_clock::time_point time_point{};
 };
 
 struct TimeInterval {
-    TimeInterval &operator+=(const TimeInterval &rhs) {
-        time += rhs.time;
-        return *this;
-    }
-    TimeInterval operator-(const TimeInterval &rhs) const {
-        TimeInterval itv;
-        itv.time = time - rhs.time;
-        return itv;
-    }
+    TimeInterval &operator+=(const TimeInterval &rhs);
+    TimeInterval operator-(const TimeInterval &rhs) const;
     double GetTime() const { return std::chrono::duration<double>(time).count(); }
 
     std::chrono::high_resolution_clock::duration time{};
 };
 
-inline TimeInterval operator-(const TimePoint &lhs, const TimePoint &rhs) { return {lhs.time_point - rhs.time_point}; }
+TimeInterval operator-(const TimePoint &lhs, const TimePoint &rhs);
 
 struct Memory {
     static Memory Get();
@@ -119,7 +93,6 @@ struct Record : public Sample {
 
 struct RecordTable {
     void Append(const Record &log) { records.push_back(log); }
-
     void Output(std::ostream &out) const;
 
     TimeInterval root_itv;
@@ -134,7 +107,7 @@ class RecordStore {
         friend class RecordStore;
 
     public:
-        Node(const void *location_id) : location_id_{location_id} {}
+        explicit Node(const void *location_id) : location_id_{location_id} {}
 
         void UpdateTime(const TimeInterval &time_inverval);
         void UpdateMemory(const Memory &memory);
@@ -143,8 +116,7 @@ class RecordStore {
         bool Empty() const;
 
     private:
-        // 标识符
-        const void *location_id_;
+        const void *location_id_{};
         size_t count_{};
 
         // 统计数据成员
@@ -182,7 +154,7 @@ private:
     Record GetRecord(const Node &node, size_t depth) const;
     Record GetRecord(const TimeInterval &itv, size_t depth) const;
 
-    std::vector<Node> nodes_{{nullptr, 0, 0}};
+    std::vector<Node> nodes_{Node{nullptr}};
     std::vector<int> node_stack_{0};
     std::stack<TimePoint> scope_stack_; // 维护当前Scope前一个TimePoint，每次Trace，读取并刷新TimePoint
 };
@@ -193,30 +165,15 @@ protected:
         unsigned char scope_count, unsigned char trace_count, const char *label, const char *file, int line);
 };
 
-// Scope为粒度，每层统计作用域
 template <typename>
 class TraceScope : public TraceScopeBase {
 public:
     TraceScope() { RecordStore::Get().TraceScopeBegin(&(++count_)); }
-
     ~TraceScope() { RecordStore::Get().TraceScopeEnd(); }
 
-    template <typename>
-    void TraceImpl(unsigned char count, const char *label, const char *file, int line) {
-        if (count != count_) {
-            ThrowCountMismatchException(count_, count, label, file, line);
-        }
-        static bool location_set{false};
-        if (!location_set) {
-            RecordStore::Get().SetLocation(label, file, line);
-            location_set = true;
-        }
-    }
-
+    // 做成类成员函数以便在编译器找到部分SCOPE和TRACE不匹配的问题
     template <typename Lambda>
-    void Trace(
-        Lambda &&, const char *label, const char *file, int line,
-        size_t mask) { // 做成类成员函数以便在编译器找到部分SCOPE和TRACE不匹配的问题
+    void Trace(Lambda &&, const char *label, const char *file, int line, size_t mask) {
         static unsigned char count{0};
         TraceImpl<Lambda>(++count, label, file, line);
         RecordStore::Get().Trace(&count, mask);
@@ -230,6 +187,18 @@ public:
     }
 
 private:
+    template <typename>
+    void TraceImpl(unsigned char count, const char *label, const char *file, int line) {
+        if (count != count_) {
+            ThrowCountMismatchException(count_, count, label, file, line);
+        }
+        static bool location_set{false};
+        if (!location_set) {
+            RecordStore::Get().SetLocation(label, file, line);
+            location_set = true;
+        }
+    }
+
     static inline unsigned char count_{0};
 };
 
