@@ -4,60 +4,60 @@
 using namespace oops;
 
 TEST(CommonOnce, Once) {
-  int count{0};
-  for (int i{0}; i < 100; ++i) {
-    ONCE() { ++count; }
-  }
-  EXPECT_EQ(count, 1);
+    int count{0};
+    for (int i{0}; i < 100; ++i) {
+        ONCE() { ++count; }
+    }
+    EXPECT_EQ(count, 1);
 }
 
 TEST(CommonOnce, Twice) {
-  int count{0};
-  for (int i{0}; i < 100; ++i) {
-    TWICE() { ++count; }
-  }
-  EXPECT_EQ(count, 2);
+    int count{0};
+    for (int i{0}; i < 100; ++i) {
+        TWICE() { ++count; }
+    }
+    EXPECT_EQ(count, 2);
 }
 
 TEST(CommonOnce, Only0) {
-  int count{0};
-  for (int i{0}; i < 100; ++i) {
-    ONLY(0) { ++count; }
-  }
-  EXPECT_EQ(count, 0);
+    int count{0};
+    for (int i{0}; i < 100; ++i) {
+        ONLY(0) { ++count; }
+    }
+    EXPECT_EQ(count, 0);
 }
 
 TEST(CommonOnce, Only1) {
-  int count{0};
-  for (int i{0}; i < 100; ++i) {
-    ONLY(1) { ++count; }
-  }
-  EXPECT_EQ(count, 1);
+    int count{0};
+    for (int i{0}; i < 100; ++i) {
+        ONLY(1) { ++count; }
+    }
+    EXPECT_EQ(count, 1);
 }
 
 TEST(CommonOnce, Only3) {
-  int count{0};
-  for (int i{0}; i < 100; ++i) {
-    ONLY(3) { ++count; }
-  }
-  EXPECT_EQ(count, 3);
+    int count{0};
+    for (int i{0}; i < 100; ++i) {
+        ONLY(3) { ++count; }
+    }
+    EXPECT_EQ(count, 3);
 }
 
 TEST(CommonOnce, Every1) {
-  int count{0};
-  for (int i{0}; i < 100; ++i) {
-    EVERY(1) { ++count; }
-  }
-  EXPECT_EQ(count, 100);
+    int count{0};
+    for (int i{0}; i < 100; ++i) {
+        EVERY(1) { ++count; }
+    }
+    EXPECT_EQ(count, 100);
 }
 
 TEST(CommonOnce, Every3) {
-  int count{0};
-  for (int i{0}; i < 100; ++i) {
-    EVERY(3) {
-      EXPECT_EQ(i % 3, 0);
-      ++count;
+    int count{0};
+    for (int i{0}; i < 100; ++i) {
+        EVERY(3) {
+            EXPECT_EQ(i % 3, 0);
+            ++count;
+        }
     }
-  }
-  EXPECT_EQ(count, 34);
+    EXPECT_EQ(count, 34);
 }

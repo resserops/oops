@@ -13,13 +13,12 @@ constexpr ::std::size_t ParseTraceVaArgs(::std::size_t mask) { return mask; }
 
 using SampleHandler = ::std::function<void(const Sample &)>;
 struct TraceVaArgs {
-  ::std::size_t mask;
-  const SampleHandler &sample_handler;
+    ::std::size_t mask;
+    const SampleHandler &sample_handler;
 };
 
-inline TraceVaArgs ParseTraceVaArgs(::std::size_t mask,
-                                    const SampleHandler &sample_handler) {
-  return {mask, sample_handler};
+inline TraceVaArgs ParseTraceVaArgs(::std::size_t mask, const SampleHandler &sample_handler) {
+    return {mask, sample_handler};
 }
 } // namespace detail
 } // namespace oops
