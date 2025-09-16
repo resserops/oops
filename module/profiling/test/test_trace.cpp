@@ -30,9 +30,9 @@ TEST(ProfilingTrace, TraceBase) {
         for (size_t i{0}; i < LOOP_N; ++i) {
             TRACE_SCOPE();
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            TRACE(step2 - 1);
+            TRACE(step2_1);
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            TRACE(step2 - 2);
+            TRACE(step2_2);
         }
         TRACE(step2);
         for (size_t i{0}; i < LOOP_N; ++i) {
@@ -43,11 +43,11 @@ TEST(ProfilingTrace, TraceBase) {
 
                 int a = 10;
 
-                TRACE(step3 - 1, MEM, [&](const Sample &sample) { std::cout << sample << " " << a << std::endl; });
+                TRACE(step3_1, MEM, [&](const Sample &sample) { std::cout << sample << " " << a << std::endl; });
             } else {
                 TRACE_SCOPE();
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                TRACE(step3 - 2, MEM);
+                TRACE(step3_2, MEM);
             }
         }
         TRACE(step3);
