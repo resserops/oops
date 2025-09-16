@@ -2,7 +2,7 @@
 
 #include "gtest/gtest.h"
 
-#define OOPS_ENABLE_TRACE true
+#define OOPS_TRACE_LEVEL OOPS_TRACE_LEVEL_DEBUG
 #include "oops/once.h"
 #include "oops/trace.h"
 
@@ -21,14 +21,13 @@ void microsleep_mono(long microseconds) {
 }
 
 TEST(ProfilingTrace, TraceBase) {
-    TraceConfig::Get().SetAnonymous();
     constexpr size_t LOOP_N{10};
     {
-        TRACE_SCOPE();
+        TRACE_SCOPE(INFO);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         TRACE(step1);
         for (size_t i{0}; i < LOOP_N; ++i) {
-            TRACE_SCOPE();
+            TRACE_SCOPE(VERBOSE);
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             TRACE(step2_1);
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -36,16 +35,17 @@ TEST(ProfilingTrace, TraceBase) {
         }
         TRACE(step2);
         for (size_t i{0}; i < LOOP_N; ++i) {
-            TRACE_SCOPE();
+            TRACE_SCOPE(INFO);
+
             if (i % 3 == 0) {
-                TRACE_SCOPE();
+                TRACE_SCOPE(VERBOSE);
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-                int a = 10;
+                [[maybe_unused]] int a = 10;
 
                 TRACE(step3_1, MEM, [&](const Sample &sample) { std::cout << sample << " " << a << std::endl; });
             } else {
-                TRACE_SCOPE();
+                TRACE_SCOPE(INFO);
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
                 TRACE(step3_2, MEM);
             }
@@ -53,45 +53,45 @@ TEST(ProfilingTrace, TraceBase) {
         TRACE(step3);
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-    RecordStore::Get().GetRecordTable().Output(std::cout);
+    TraceStore::Get().GetRecordTable().Output(std::cout);
 }
 
 void Func() {
-    TRACE_SCOPE();
+    TRACE_SCOPE(INFO);
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
     TRACE(INFUNC);
 }
 
 TEST(ProfilingTrace, BAD) {
-    RecordStore::Get().Clear();
-    TRACE_SCOPE();
+    TraceStore::Get().Clear();
+    TRACE_SCOPE(INFO);
     Func();
     for (size_t i = 0; i < 1; ++i) {
-        TRACE_SCOPE();
+        TRACE_SCOPE(INFO);
         Func();
         TRACE(FOR_DONE);
     }
     Func();
     TRACE(DONE);
-    RecordStore::Get().GetRecordTable().Output(std::cout);
+    TraceStore::Get().GetRecordTable().Output(std::cout);
 }
 
 TEST(ProfilingTrace, InternalCost) {
-    RecordStore::Get().Clear();
+    TraceStore::Get().Clear();
     constexpr size_t LOOP_N{10};
-    TRACE_SCOPE();
+    TRACE_SCOPE(INFO);
     for (size_t i{0}; i < LOOP_N; ++i) {
-        TRACE_SCOPE();
+        TRACE_SCOPE(INFO);
         microsleep_mono(100);
         TRACE(step1);
         TRACE(step2);
     }
-    RecordStore::Get().GetRecordTable().Output(std::cout);
+    TraceStore::Get().GetRecordTable().Output(std::cout);
 }
 
 TEST(ProfilingTrace, Bad) {
-    RecordStore::Get().Clear();
-    TRACE_SCOPE();
+    TraceStore::Get().Clear();
+    TRACE_SCOPE(INFO);
     for (size_t i = 0; i < 2; ++i) {
         try {
             TRACE(step1);
@@ -104,9 +104,9 @@ TEST(ProfilingTrace, Bad) {
 }
 
 TEST(ProfilingTrace, Bad2) {
-    RecordStore::Get().Clear();
+    TraceStore::Get().Clear();
     for (size_t i = 0; i < 10; ++i) {
-        TRACE_SCOPE();
+        TRACE_SCOPE(INFO);
         if (i % 2 == 0) {
             TRACE(step_n0);
         } else {
@@ -121,9 +121,9 @@ TEST(ProfilingTrace, Bad2) {
 }
 
 TEST(ProfilingTrace, Bad3) {
-    RecordStore::Get().Clear();
+    TraceStore::Get().Clear();
     for (size_t i = 0; i < 10; ++i) {
-        TRACE_SCOPE();
+        TRACE_SCOPE(INFO);
         if (i % 2 == 0) {
             try {
                 TRACE(step1);
