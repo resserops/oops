@@ -33,7 +33,7 @@
 #if OOPS_TRACE_LEVEL <= OOPS_TRACE_LEVEL_VERBOSE
 #define OOPS_TRACE_SCOPE_VERBOSE() auto oops_trace_scope__(::oops::MakeTraceScope<OOPS_TRACE_LEVEL_VERBOSE>([] {}))
 #elif OOPS_TRACE_LEVEL <= OOPS_TRACE_LEVEL_INFO
-#define OOPS_TRACE_SCOPE_VERBOSE() EmptyScope oops_trace_scope__
+#define OOPS_TRACE_SCOPE_VERBOSE() ::oops::EmptyScope oops_trace_scope__
 #else
 #define OOPS_TRACE_SCOPE_VERBOSE() (void)0
 #endif
@@ -41,7 +41,7 @@
 #if OOPS_TRACE_LEVEL <= OOPS_TRACE_LEVEL_DEBUG
 #define OOPS_TRACE_SCOPE_DEBUG() auto oops_trace_scope__(::oops::MakeTraceScope<OOPS_TRACE_LEVEL_DEBUG>([] {}))
 #elif OOPS_TRACE_LEVEL <= OOPS_TRACE_LEVEL_INFO
-#define OOPS_TRACE_SCOPE_DEBUG() EmptyScope oops_trace_scope__
+#define OOPS_TRACE_SCOPE_DEBUG() ::oops::EmptyScope oops_trace_scope__
 #else
 #define OOPS_TRACE_SCOPE_DEBUG() (void)0
 #endif
