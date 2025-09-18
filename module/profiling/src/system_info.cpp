@@ -14,9 +14,10 @@
 #include "oops/format.h"
 #include "oops/str.h"
 
-#define GET(member) [](const Info &info) -> std::string { return info.member ? ToStr(*info.member) : ""; }
-#define SET(member) [](std::string_view value, Info &info) { return FromSv(value, info.member); }
-#define ACCESS(member) GET(member), SET(member)
+#define REG(parse, format, member) parse(member), format(member)
+
+#define PARSE(member) [](std::string_view value, Info &info) { return FromSv(value, info.member); }
+#define FORMAT(member) [](const Info &info) -> std::string { return info.member ? ToStr(*info.member) : ""; }
 
 namespace oops {
 std::string GetCmdOutput(const std::string &cmd) {
@@ -39,16 +40,16 @@ bool FromSv(std::string_view sv, std::optional<T> &value) {
     return true;
 }
 
-template <typename Info, typename Field>
-struct FieldMeta {
+template <typename Info>
+struct FieldEntry {
     std::string_view key;
-    std::function<std::string(const Info &)> get;
-    std::function<bool(std::string_view, Info &)> set;
+    std::function<bool(std::string_view, Info &)> parse;
+    std::function<std::string(const Info &)> format;
 };
 
 template <typename Info, typename Field>
 Info GetPairedInfo(
-    std::istream &is, const std::vector<FieldMeta<Info, Field>> &table, const EnumBitset<Field> &field_mask) {
+    std::istream &is, const std::vector<FieldEntry<Info>> &field_table, const EnumBitset<Field> &field_mask) {
     Info info;
     std::string line_buf;
 
@@ -66,12 +67,12 @@ Info GetPairedInfo(
         }
 
         std::size_t i{0};
-        for (; i < table.size(); ++i) {
-            if (field_mask[i] && table[i].key == key) {
+        for (; i < field_table.size(); ++i) {
+            if (field_mask[i] && field_table[i].key == key) {
                 break;
             }
         }
-        if (i >= table.size()) {
+        if (i >= field_table.size()) {
             continue;
         }
 
@@ -80,7 +81,7 @@ Info GetPairedInfo(
             continue;
         }
 
-        table[i].set(value, info);
+        field_table[i].parse(value, info);
         checked |= static_cast<Field>(i);
         if (checked == field_mask) {
             break;
@@ -91,11 +92,11 @@ Info GetPairedInfo(
 
 template <typename Info, typename Field>
 void OutputPairedInfo(
-    std::ostream &os, const Info &info, const std::vector<FieldMeta<Info, Field>> &table,
+    std::ostream &os, const Info &info, const std::vector<FieldEntry<Info>> &field_table,
     const EnumBitset<Field> &) { // TODO(resserops): 传入bitmap判断打印哪些内容
     FTable ftable;
-    for (const auto &meta : table) {
-        std::string value{meta.get(info)};
+    for (const auto &meta : field_table) {
+        std::string value{meta.format(info)};
         if (!value.empty()) {
             ftable.AppendRow(std::string{meta.key} + ":", value);
         }
@@ -104,46 +105,47 @@ void OutputPairedInfo(
 }
 
 namespace status {
-static const std::vector<FieldMeta<Info, Field>> TABLE{
-    {"VmPeak", ACCESS(vm_peak)},   {"VmSize", ACCESS(vm_size)},   {"VmLck", ACCESS(vm_lck)},
-    {"VmPin", ACCESS(vm_pin)},     {"VmHWM", ACCESS(vm_hwm)},     {"VmRSS", ACCESS(vm_rss)},
-    {"RssAnon", ACCESS(rss_anon)}, {"RssFile", ACCESS(rss_file)}, {"RssShmem", ACCESS(rss_shmem)},
-    {"VmData", ACCESS(vm_data)},   {"VmStk", ACCESS(vm_stk)},     {"VmExe", ACCESS(vm_exe)},
-    {"VmLib", ACCESS(vm_lib)},     {"VmPTE", ACCESS(vm_pte)},     {"VmSwap", ACCESS(vm_swap)}};
+static const std::vector<FieldEntry<Info>> FIELD_TABLE{
+    {"VmPeak", REG(PARSE, FORMAT, vm_peak)},     {"VmSize", REG(PARSE, FORMAT, vm_size)},
+    {"VmLck", REG(PARSE, FORMAT, vm_lck)},       {"VmPin", REG(PARSE, FORMAT, vm_pin)},
+    {"VmHWM", REG(PARSE, FORMAT, vm_hwm)},       {"VmRSS", REG(PARSE, FORMAT, vm_rss)},
+    {"RssAnon", REG(PARSE, FORMAT, rss_anon)},   {"RssFile", REG(PARSE, FORMAT, rss_file)},
+    {"RssShmem", REG(PARSE, FORMAT, rss_shmem)}, {"VmData", REG(PARSE, FORMAT, vm_data)},
+    {"VmStk", REG(PARSE, FORMAT, vm_stk)},       {"VmExe", REG(PARSE, FORMAT, vm_exe)},
+    {"VmLib", REG(PARSE, FORMAT, vm_lib)},       {"VmPTE", REG(PARSE, FORMAT, vm_pte)},
+    {"VmSwap", REG(PARSE, FORMAT, vm_swap)}};
 
 Info Get() { return Get(~FieldMask{}); }
-
 Info Get(const FieldMask &field_mask) {
     std::ifstream ifs("/proc/self/status");
-    return GetPairedInfo(ifs, TABLE, field_mask);
+    return GetPairedInfo(ifs, FIELD_TABLE, field_mask);
 }
 
 std::ostream &operator<<(std::ostream &out, const Info &info) {
-    OutputPairedInfo(out, info, TABLE, {});
+    OutputPairedInfo(out, info, FIELD_TABLE, FieldMask{});
     return out;
 }
 } // namespace status
 
 namespace lscpu {
-static const std::vector<FieldMeta<Info, Field>> TABLE{
-    {"Architecture", ACCESS(architecture)},
-    {"CPU(s)", ACCESS(cpus)},
-    {"Thread(s) per core", ACCESS(threads_per_core)},
-    {"Core(s) per socket", ACCESS(cores_per_socket)},
-    {"Socket(s)", ACCESS(sockets)},
-    {"NUMA node(s)", ACCESS(numa_nodes)},
-    {"Model name", ACCESS(model_name)},
-    {"CPU MHz", ACCESS(cpu_mhz)}};
+static const std::vector<FieldEntry<Info>> FIELD_TABLE{
+    {"Architecture", REG(PARSE, FORMAT, architecture)},
+    {"CPU(s)", REG(PARSE, FORMAT, cpus)},
+    {"Thread(s) per core", REG(PARSE, FORMAT, threads_per_core)},
+    {"Core(s) per socket", REG(PARSE, FORMAT, cores_per_socket)},
+    {"Socket(s)", REG(PARSE, FORMAT, sockets)},
+    {"NUMA node(s)", REG(PARSE, FORMAT, numa_nodes)},
+    {"Model name", REG(PARSE, FORMAT, model_name)},
+    {"CPU MHz", REG(PARSE, FORMAT, cpu_mhz)}};
 
 Info Get() { return Get(~FieldMask{}); }
-
 Info Get(const FieldMask &field_mask) {
     std::istringstream iss{GetCmdOutput("lscpu")};
-    return GetPairedInfo(iss, TABLE, field_mask);
+    return GetPairedInfo(iss, FIELD_TABLE, field_mask);
 }
 
 std::ostream &operator<<(std::ostream &out, const Info &info) {
-    OutputPairedInfo(out, info, TABLE, {});
+    OutputPairedInfo(out, info, FIELD_TABLE, FieldMask{});
     return out;
 }
 } // namespace lscpu
