@@ -12,13 +12,63 @@
 #include <unordered_map>
 #include <vector>
 
-#include "oops/trace_def.h"
 #include "oops/trace_detail.h"
 
 #include "oops/format.h"
 #include "oops/once.h"
 #include "oops/range.h"
 #include "oops/str.h"
+
+// 定义静态TRACE等级
+#define OOPS_TRACE_LEVEL_VERBOSE 0
+#define OOPS_TRACE_LEVEL_DEBUG 1
+#define OOPS_TRACE_LEVEL_INFO 2
+#define OOPS_TRACE_LEVEL_OFF 3
+
+#ifndef OOPS_TRACE_LEVEL
+#define OOPS_TRACE_LEVEL OOPS_TRACE_LEVEL_INFO // 默认等级INFO
+#endif
+
+// 定义TRACE_SCOPE
+#if OOPS_TRACE_LEVEL <= OOPS_TRACE_LEVEL_VERBOSE
+#define OOPS_TRACE_SCOPE_VERBOSE() auto oops_trace_scope__(::oops::MakeTraceScope<OOPS_TRACE_LEVEL_VERBOSE>([] {}))
+#elif OOPS_TRACE_LEVEL <= OOPS_TRACE_LEVEL_INFO
+#define OOPS_TRACE_SCOPE_VERBOSE() EmptyScope oops_trace_scope__
+#else
+#define OOPS_TRACE_SCOPE_VERBOSE() (void)0
+#endif
+
+#if OOPS_TRACE_LEVEL <= OOPS_TRACE_LEVEL_DEBUG
+#define OOPS_TRACE_SCOPE_DEBUG() auto oops_trace_scope__(::oops::MakeTraceScope<OOPS_TRACE_LEVEL_DEBUG>([] {}))
+#elif OOPS_TRACE_LEVEL <= OOPS_TRACE_LEVEL_INFO
+#define OOPS_TRACE_SCOPE_DEBUG() EmptyScope oops_trace_scope__
+#else
+#define OOPS_TRACE_SCOPE_DEBUG() (void)0
+#endif
+
+#if OOPS_TRACE_LEVEL <= OOPS_TRACE_LEVEL_INFO
+#define OOPS_TRACE_SCOPE_INFO() auto oops_trace_scope__(::oops::MakeTraceScope<OOPS_TRACE_LEVEL_INFO>([] {}))
+#else
+#define OOPS_TRACE_SCOPE_INFO() (void)0
+#endif
+
+#define OOPS_TRACE_SCOPE(level) OOPS_TRACE_SCOPE_##level()
+
+#ifndef TRACE_SCOPE
+#define TRACE_SCOPE(level) OOPS_TRACE_SCOPE(level)
+#endif
+
+// 定义TRACE
+#if OOPS_TRACE_LEVEL <= OOPS_TRACE_LEVEL_INFO
+#define OOPS_TRACE(label, ...) \
+    oops_trace_scope__.Trace([] {}, #label, __FILE__, __LINE__, ::oops::detail::ParseTraceVaArgs(__VA_ARGS__))
+#else
+#define OOPS_TRACE(label, ...) (void)0
+#endif
+
+#ifndef TRACE
+#define TRACE(label, ...) OOPS_TRACE(label, __VA_ARGS__)
+#endif
 
 namespace oops {
 // TARCE mask参数配置
@@ -33,12 +83,15 @@ public:
         return instance;
     }
 
+    void SetTraceLevel(unsigned char trace_level) { trace_level_ = trace_level; }
+    unsigned char GetTraceLevel() const { return trace_level_; }
     void SetAnonymous(bool anonymous = true) { anonymous_ = anonymous; }
     bool GetAnonymous() const { return anonymous_; }
 
 private:
     static TraceConfig &GetImpl();
 
+    unsigned char trace_level_{OOPS_TRACE_LEVEL_INFO};
     bool anonymous_{false};
 };
 
@@ -102,9 +155,9 @@ struct RecordTable {
 std::ostream &operator<<(std::ostream &out, const RecordTable &sample);
 
 // 存储所有Trace产生的Record，组织依赖关系
-class RecordStore {
+class TraceStore {
     class Node {
-        friend class RecordStore;
+        friend class TraceStore;
 
     public:
         explicit Node(const void *location_id) : location_id_{location_id} {}
@@ -128,7 +181,7 @@ class RecordStore {
 
 public:
     static auto &Get() {
-        static RecordStore &stat{GetImpl()};
+        static TraceStore &stat{GetImpl()};
         return stat;
     }
     void Clear();
@@ -144,7 +197,7 @@ public:
     RecordTable GetRecordTable() const;
 
 private:
-    static RecordStore &GetImpl(); // 避免跨编译单元产生多实例
+    static TraceStore &GetImpl(); // 避免跨编译单元产生多实例
 
     int GetOrCreateNode(int parent_i, const void *location_id);
     void SetupSameLevelNode(const void *location_id);
@@ -165,25 +218,37 @@ protected:
         unsigned char scope_count, unsigned char trace_count, const char *label, const char *file, int line);
 };
 
-template <typename>
+template <unsigned char Level, typename>
 class TraceScope : public TraceScopeBase {
 public:
-    TraceScope() { RecordStore::Get().TraceScopeBegin(&(++count_)); }
-    ~TraceScope() { RecordStore::Get().TraceScopeEnd(); }
+    TraceScope() : is_active_{TraceConfig::Get().GetTraceLevel() <= Level} {
+        if (is_active_) {
+            TraceStore::Get().TraceScopeBegin(&(++count_));
+        }
+    }
+    ~TraceScope() {
+        if (is_active_) {
+            TraceStore::Get().TraceScopeEnd();
+        }
+    }
 
     // 做成类成员函数以便在编译器找到部分SCOPE和TRACE不匹配的问题
     template <typename Lambda>
     void Trace(Lambda &&, const char *label, const char *file, int line, size_t mask) {
         static unsigned char count{0};
-        TraceImpl<Lambda>(++count, label, file, line);
-        RecordStore::Get().Trace(&count, mask);
+        if (is_active_) {
+            TraceImpl<Lambda>(++count, label, file, line);
+            TraceStore::Get().Trace(&count, mask);
+        }
     }
 
     template <typename Lambda>
     void Trace(Lambda &&, const char *label, const char *file, int line, const detail::TraceVaArgs &va_args) {
         static unsigned char count{0};
-        TraceImpl<Lambda>(++count, label, file, line);
-        RecordStore::Get().Trace(&count, va_args);
+        if (is_active_) {
+            TraceImpl<Lambda>(++count, label, file, line);
+            TraceStore::Get().Trace(&count, va_args);
+        }
     }
 
 private:
@@ -194,16 +259,22 @@ private:
         }
         static bool location_set{false};
         if (!location_set) {
-            RecordStore::Get().SetLocation(label, file, line);
+            TraceStore::Get().SetLocation(label, file, line);
             location_set = true;
         }
     }
 
     static inline unsigned char count_{0};
+    bool is_active_{};
 };
 
-template <typename Lambda>
+struct EmptyScope {
+    template <typename... Args>
+    void Trace(Args &&...) {}
+};
+
+template <unsigned char Level, typename Lambda>
 auto MakeTraceScope(Lambda &&) {
-    return TraceScope<Lambda>{};
+    return TraceScope<Level, Lambda>{};
 }
 } // namespace oops

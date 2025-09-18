@@ -122,15 +122,15 @@ private:
     std::deque<Location> locations_; // 保证地址稳定，只允许后端插入
 };
 
-// RecordStore::Node
-void RecordStore::Node::UpdateTime(const TimeInterval &time_inverval) {
+// TraceStore::Node
+void TraceStore::Node::UpdateTime(const TimeInterval &time_inverval) {
     time_inverval_ += time_inverval;
     ++count_;
 }
 
-void RecordStore::Node::UpdateMemory(const Memory &memory) { memory_ = memory; }
+void TraceStore::Node::UpdateMemory(const Memory &memory) { memory_ = memory; }
 
-Location RecordStore::Node::GetLocation() const {
+Location TraceStore::Node::GetLocation() const {
     Location location{LocationStore::Get().GetLocation(location_id_)};
     if (TraceConfig::Get().GetAnonymous()) {
         location.label = nullptr;
@@ -140,20 +140,20 @@ Location RecordStore::Node::GetLocation() const {
     return location;
 }
 
-bool RecordStore::Node::Empty() const { return count_ == 0; }
+bool TraceStore::Node::Empty() const { return count_ == 0; }
 
-// RecordStore
-RecordStore &RecordStore::GetImpl() {
-    static RecordStore instance;
+// TraceStore
+TraceStore &TraceStore::GetImpl() {
+    static TraceStore instance;
     return instance;
 }
 
-void RecordStore::Clear() { // Clear完后又执行到执行过的scope，是否会有问题？
-    this->~RecordStore();
-    new (this) RecordStore{};
+void TraceStore::Clear() { // Clear完后又执行到执行过的scope，是否会有问题？
+    this->~TraceStore();
+    new (this) TraceStore{};
 }
 
-int RecordStore::GetOrCreateNode(int parent_i, const void *location_id) {
+int TraceStore::GetOrCreateNode(int parent_i, const void *location_id) {
     Node &parent{nodes_[parent_i]};
     for (int node_i : parent.children_) {
         Node &node{nodes_[node_i]};
@@ -167,12 +167,12 @@ int RecordStore::GetOrCreateNode(int parent_i, const void *location_id) {
     return node_i;
 }
 
-void RecordStore::SetLocation(const char *label, const char *file, int line) {
+void TraceStore::SetLocation(const char *label, const char *file, int line) {
     const void *location_id{nodes_[node_stack_.back()].location_id_}; // 同层上个被创建节点的标识符
     LocationStore::Get().SetLocation(location_id, {label, file, line});
 }
 
-void RecordStore::TraceScopeBegin(const void *location_id) {
+void TraceStore::TraceScopeBegin(const void *location_id) {
     // 压入初始时间点
     scope_stack_.push(TimePoint::Get());
 
@@ -183,12 +183,12 @@ void RecordStore::TraceScopeBegin(const void *location_id) {
     node_stack_.push_back(node_i);
 }
 
-void RecordStore::TraceScopeEnd() {
+void TraceStore::TraceScopeEnd() {
     scope_stack_.pop();
     node_stack_.pop_back();
 }
 
-void RecordStore::Trace(const void *location_id, size_t mask) {
+void TraceStore::Trace(const void *location_id, size_t mask) {
     // 更新旧节点
     Node &node{nodes_[node_stack_.back()]};
     assert(LocationStore::Get().Contains(
@@ -209,7 +209,7 @@ void RecordStore::Trace(const void *location_id, size_t mask) {
     SetupSameLevelNode(location_id);
 }
 
-void RecordStore::Trace(const void *location_id, const detail::TraceVaArgs &va_args) {
+void TraceStore::Trace(const void *location_id, const detail::TraceVaArgs &va_args) {
     // 更新旧节点
     Node &node{nodes_[node_stack_.back()]};
     assert(LocationStore::Get().Contains(node.location_id_));
@@ -232,14 +232,14 @@ void RecordStore::Trace(const void *location_id, const detail::TraceVaArgs &va_a
     SetupSameLevelNode(location_id);
 }
 
-void RecordStore::SetupSameLevelNode(const void *location_id) {
+void TraceStore::SetupSameLevelNode(const void *location_id) {
     assert(node_stack_.size() > 1);
     int parent_i{node_stack_[node_stack_.size() - 2]};
     int node_i{GetOrCreateNode(parent_i, location_id)};
     node_stack_.back() = node_i;
 }
 
-Record RecordStore::GetRecord(const Node &node, size_t depth) const {
+Record TraceStore::GetRecord(const Node &node, size_t depth) const {
     Record record{GetRecord(node.time_inverval_, depth)};
     static_cast<Memory &>(record) = node.memory_;
     static_cast<Location &>(record) = node.GetLocation();
@@ -247,7 +247,7 @@ Record RecordStore::GetRecord(const Node &node, size_t depth) const {
     return record;
 }
 
-Record RecordStore::GetRecord(const TimeInterval &itv, size_t depth) const {
+Record TraceStore::GetRecord(const TimeInterval &itv, size_t depth) const {
     Record record;
     record.depth = depth;
     record.count = 1;
@@ -255,9 +255,9 @@ Record RecordStore::GetRecord(const TimeInterval &itv, size_t depth) const {
     return record;
 }
 
-RecordTable RecordStore::GetRecordTable(const char *) const { return GetRecordTable(); }
+RecordTable TraceStore::GetRecordTable(const char *) const { return GetRecordTable(); }
 
-TimeInterval RecordStore::GetRecordTableImpl(int node_i, size_t depth, RecordTable &record_table) const {
+TimeInterval TraceStore::GetRecordTableImpl(int node_i, size_t depth, RecordTable &record_table) const {
     const Node &node{nodes_[node_i]};
     auto traverse_children = [&](size_t depth) {
         TimeInterval child_itv;
@@ -276,7 +276,7 @@ TimeInterval RecordStore::GetRecordTableImpl(int node_i, size_t depth, RecordTab
     return node.time_inverval_;
 }
 
-RecordTable RecordStore::GetRecordTable() const {
+RecordTable TraceStore::GetRecordTable() const {
     RecordTable table;
     table.root_itv = table.entry_itv = GetRootItv();
     for (int node_i : nodes_[0].children_) {
@@ -285,7 +285,7 @@ RecordTable RecordStore::GetRecordTable() const {
     return table;
 }
 
-TimeInterval RecordStore::GetRootItv() const {
+TimeInterval TraceStore::GetRootItv() const {
     TimeInterval root_itv;
     for (int node_i : nodes_[0].children_) {
         root_itv += nodes_[node_i].time_inverval_;
