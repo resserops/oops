@@ -27,10 +27,19 @@ template <typename T>
 std::string ToStr(const T &t);
 
 namespace str {
-constexpr std::string_view WHITE_SPACE{" \t\n\r\v\f"};
+constexpr std::string_view SPACE{" \t\n\r\v\f"};
+
+[[nodiscard]] constexpr bool IsUpper(char c) noexcept;
+[[nodiscard]] constexpr bool IsLower(char c) noexcept;
+[[nodiscard]] constexpr bool IsAlpha(char c) noexcept;
+[[nodiscard]] constexpr bool IsDigit(char c) noexcept;
+[[nodiscard]] constexpr bool IsAlnum(char c) noexcept;
+[[nodiscard]] constexpr char ToUpper(char c) noexcept;
+[[nodiscard]] constexpr char ToLower(char c) noexcept;
+
 [[nodiscard]] bool StartsWith(std::string_view sv, std::string_view prefix);
 [[nodiscard]] bool EndsWith(std::string_view sv, std::string_view suffix);
-[[nodiscard]] std::string_view Strip(std::string_view sv, std::string_view chars = WHITE_SPACE);
+[[nodiscard]] std::string_view Strip(std::string_view sv, std::string_view chars = SPACE);
 
 template <typename T>
 T FromStr(const std::string_view sv);

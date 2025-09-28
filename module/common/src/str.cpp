@@ -49,12 +49,10 @@ std::string_view Strip(std::string_view sv, std::string_view chars) {
     if (sv.empty()) {
         return sv;
     }
-
     std::size_t pos{sv.find_first_not_of(chars)};
     if (pos == sv.npos) {
         return {};
     }
-
     return sv.substr(pos, sv.find_last_not_of(chars) - pos + 1);
 }
 } // namespace str
