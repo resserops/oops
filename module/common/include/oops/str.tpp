@@ -66,6 +66,19 @@ template <typename T>
 }
 
 namespace str {
+constexpr bool IsUpper(char c) noexcept { return 'A' <= c && c <= 'Z'; }
+constexpr bool IsLower(char c) noexcept { return 'a' <= c && c <= 'z'; }
+constexpr bool IsAlpha(char c) noexcept { return IsUpper(c) || IsLower(c); }
+constexpr bool IsDigit(char c) noexcept { return '0' <= c && c <= '9'; }
+constexpr bool IsAlnum(char c) noexcept { return IsAlpha(c) || IsDigit(c); }
+
+constexpr bool IsSpace(char c) noexcept {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f';
+}
+
+constexpr char ToUpper(char c) noexcept { return IsLower(c) ? (c - 'a' + 'A') : c; }
+constexpr char ToLower(char c) noexcept { return IsUpper(c) ? (c - 'A' + 'a') : c; }
+
 template <typename T>
 T FromStr(const ::std::string_view sv) {
     ::std::istringstream iss{::std::string{sv}}; // TODO(resserops): 优化自定义stream
