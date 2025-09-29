@@ -16,10 +16,6 @@ std::string StrRepeat(const std::string &str, size_t n) {
     return ret;
 }
 
-std::string operator*(const std::string &str, size_t n) { return StrRepeat(str, n); }
-
-std::string operator*(size_t n, const std::string &str) { return StrRepeat(str, n); }
-
 std::string StrSplitBack(const std::string &str, const std::string &delim) {
     return str.substr(str.rfind(delim) + delim.size());
 }

@@ -26,22 +26,22 @@ static constexpr struct {
 template <auto Value>
 constexpr auto CONSTEXPR_VALUE{Value};
 
-#define CONSTEXPR(expr) (CONSTEXPR_VALUE<expr>) // TODO(liubiqian): 找一个合适的内存
+#define CEXPR(expr) (CONSTEXPR_VALUE<expr>) // compile-time
 
 TEST(CommonStr, IsUpper) {
     using namespace oops::str;
-    EXPECT_TRUE(CONSTEXPR(IsUpper('A')));
-    EXPECT_TRUE(CONSTEXPR(IsUpper('Z')));
+    EXPECT_TRUE(CEXPR(IsUpper('A')));
+    EXPECT_TRUE(CEXPR(IsUpper('Z')));
 
-    EXPECT_FALSE(CONSTEXPR(IsUpper('a')));
-    EXPECT_FALSE(CONSTEXPR(IsUpper('z')));
-    EXPECT_FALSE(CONSTEXPR(IsUpper('@')));
-    EXPECT_FALSE(CONSTEXPR(IsUpper('[')));
+    EXPECT_FALSE(CEXPR(IsUpper('a')));
+    EXPECT_FALSE(CEXPR(IsUpper('z')));
+    EXPECT_FALSE(CEXPR(IsUpper('@')));
+    EXPECT_FALSE(CEXPR(IsUpper('[')));
 
-    EXPECT_FALSE(CONSTEXPR(IsUpper('0')));
-    EXPECT_FALSE(CONSTEXPR(IsUpper(' ')));
-    EXPECT_FALSE(CONSTEXPR(IsUpper('\0')));
-    EXPECT_FALSE(CONSTEXPR(IsUpper('\n')));
+    EXPECT_FALSE(CEXPR(IsUpper('0')));
+    EXPECT_FALSE(CEXPR(IsUpper(' ')));
+    EXPECT_FALSE(CEXPR(IsUpper('\0')));
+    EXPECT_FALSE(CEXPR(IsUpper('\n')));
 }
 
 TEST(CommonStr, IsUpperSameAsStd) {
@@ -55,18 +55,18 @@ TEST(CommonStr, IsUpperSameAsStd) {
 
 TEST(CommonStr, IsLower) {
     using namespace oops::str;
-    EXPECT_TRUE(CONSTEXPR(IsLower('a')));
-    EXPECT_TRUE(CONSTEXPR(IsLower('z')));
+    EXPECT_TRUE(CEXPR(IsLower('a')));
+    EXPECT_TRUE(CEXPR(IsLower('z')));
 
-    EXPECT_FALSE(CONSTEXPR(IsLower('A')));
-    EXPECT_FALSE(CONSTEXPR(IsLower('Z')));
-    EXPECT_FALSE(CONSTEXPR(IsLower('`')));
-    EXPECT_FALSE(CONSTEXPR(IsLower('{')));
+    EXPECT_FALSE(CEXPR(IsLower('A')));
+    EXPECT_FALSE(CEXPR(IsLower('Z')));
+    EXPECT_FALSE(CEXPR(IsLower('`')));
+    EXPECT_FALSE(CEXPR(IsLower('{')));
 
-    EXPECT_FALSE(CONSTEXPR(IsLower('0')));
-    EXPECT_FALSE(CONSTEXPR(IsLower(' ')));
-    EXPECT_FALSE(CONSTEXPR(IsLower('\0')));
-    EXPECT_FALSE(CONSTEXPR(IsLower('\n')));
+    EXPECT_FALSE(CEXPR(IsLower('0')));
+    EXPECT_FALSE(CEXPR(IsLower(' ')));
+    EXPECT_FALSE(CEXPR(IsLower('\0')));
+    EXPECT_FALSE(CEXPR(IsLower('\n')));
 }
 
 TEST(CommonStr, IsLowerSameAsStd) {
@@ -80,20 +80,20 @@ TEST(CommonStr, IsLowerSameAsStd) {
 
 TEST(CommonStr, IsAlpha) {
     using namespace oops::str;
-    EXPECT_TRUE(CONSTEXPR(IsAlpha('A')));
-    EXPECT_TRUE(CONSTEXPR(IsAlpha('Z')));
-    EXPECT_TRUE(CONSTEXPR(IsAlpha('a')));
-    EXPECT_TRUE(CONSTEXPR(IsAlpha('z')));
+    EXPECT_TRUE(CEXPR(IsAlpha('A')));
+    EXPECT_TRUE(CEXPR(IsAlpha('Z')));
+    EXPECT_TRUE(CEXPR(IsAlpha('a')));
+    EXPECT_TRUE(CEXPR(IsAlpha('z')));
 
-    EXPECT_FALSE(CONSTEXPR(IsAlpha('@')));
-    EXPECT_FALSE(CONSTEXPR(IsAlpha('[')));
-    EXPECT_FALSE(CONSTEXPR(IsAlpha('`')));
-    EXPECT_FALSE(CONSTEXPR(IsAlpha('{')));
+    EXPECT_FALSE(CEXPR(IsAlpha('@')));
+    EXPECT_FALSE(CEXPR(IsAlpha('[')));
+    EXPECT_FALSE(CEXPR(IsAlpha('`')));
+    EXPECT_FALSE(CEXPR(IsAlpha('{')));
 
-    EXPECT_FALSE(CONSTEXPR(IsAlpha('0')));
-    EXPECT_FALSE(CONSTEXPR(IsAlpha(' ')));
-    EXPECT_FALSE(CONSTEXPR(IsAlpha('\0')));
-    EXPECT_FALSE(CONSTEXPR(IsAlpha('\n')));
+    EXPECT_FALSE(CEXPR(IsAlpha('0')));
+    EXPECT_FALSE(CEXPR(IsAlpha(' ')));
+    EXPECT_FALSE(CEXPR(IsAlpha('\0')));
+    EXPECT_FALSE(CEXPR(IsAlpha('\n')));
 }
 
 TEST(CommonStr, IsAlphaSameAsStd) {
@@ -107,17 +107,17 @@ TEST(CommonStr, IsAlphaSameAsStd) {
 
 TEST(CommonStr, IsDigit) {
     using namespace oops::str;
-    EXPECT_TRUE(CONSTEXPR(IsDigit('0')));
-    EXPECT_TRUE(CONSTEXPR(IsDigit('9')));
+    EXPECT_TRUE(CEXPR(IsDigit('0')));
+    EXPECT_TRUE(CEXPR(IsDigit('9')));
 
-    EXPECT_FALSE(CONSTEXPR(IsDigit('/')));
-    EXPECT_FALSE(CONSTEXPR(IsDigit(':')));
+    EXPECT_FALSE(CEXPR(IsDigit('/')));
+    EXPECT_FALSE(CEXPR(IsDigit(':')));
 
-    EXPECT_FALSE(CONSTEXPR(IsDigit('A')));
-    EXPECT_FALSE(CONSTEXPR(IsDigit('a')));
-    EXPECT_FALSE(CONSTEXPR(IsDigit(' ')));
-    EXPECT_FALSE(CONSTEXPR(IsDigit('\0')));
-    EXPECT_FALSE(CONSTEXPR(IsDigit('\n')));
+    EXPECT_FALSE(CEXPR(IsDigit('A')));
+    EXPECT_FALSE(CEXPR(IsDigit('a')));
+    EXPECT_FALSE(CEXPR(IsDigit(' ')));
+    EXPECT_FALSE(CEXPR(IsDigit('\0')));
+    EXPECT_FALSE(CEXPR(IsDigit('\n')));
 }
 
 TEST(CommonStr, IsDigitSameAsStd) {
@@ -131,23 +131,23 @@ TEST(CommonStr, IsDigitSameAsStd) {
 
 TEST(CommonStr, IsAlnum) {
     using namespace oops::str;
-    EXPECT_TRUE(CONSTEXPR(IsAlnum('A')));
-    EXPECT_TRUE(CONSTEXPR(IsAlnum('Z')));
-    EXPECT_TRUE(CONSTEXPR(IsAlnum('a')));
-    EXPECT_TRUE(CONSTEXPR(IsAlnum('z')));
-    EXPECT_TRUE(CONSTEXPR(IsAlnum('0')));
-    EXPECT_TRUE(CONSTEXPR(IsAlnum('9')));
+    EXPECT_TRUE(CEXPR(IsAlnum('A')));
+    EXPECT_TRUE(CEXPR(IsAlnum('Z')));
+    EXPECT_TRUE(CEXPR(IsAlnum('a')));
+    EXPECT_TRUE(CEXPR(IsAlnum('z')));
+    EXPECT_TRUE(CEXPR(IsAlnum('0')));
+    EXPECT_TRUE(CEXPR(IsAlnum('9')));
 
-    EXPECT_FALSE(CONSTEXPR(IsAlnum('@')));
-    EXPECT_FALSE(CONSTEXPR(IsAlnum('[')));
-    EXPECT_FALSE(CONSTEXPR(IsAlnum('`')));
-    EXPECT_FALSE(CONSTEXPR(IsAlnum('{')));
-    EXPECT_FALSE(CONSTEXPR(IsAlnum('/')));
-    EXPECT_FALSE(CONSTEXPR(IsAlnum(':')));
+    EXPECT_FALSE(CEXPR(IsAlnum('@')));
+    EXPECT_FALSE(CEXPR(IsAlnum('[')));
+    EXPECT_FALSE(CEXPR(IsAlnum('`')));
+    EXPECT_FALSE(CEXPR(IsAlnum('{')));
+    EXPECT_FALSE(CEXPR(IsAlnum('/')));
+    EXPECT_FALSE(CEXPR(IsAlnum(':')));
 
-    EXPECT_FALSE(CONSTEXPR(IsAlnum(' ')));
-    EXPECT_FALSE(CONSTEXPR(IsAlnum('\0')));
-    EXPECT_FALSE(CONSTEXPR(IsAlnum('\n')));
+    EXPECT_FALSE(CEXPR(IsAlnum(' ')));
+    EXPECT_FALSE(CEXPR(IsAlnum('\0')));
+    EXPECT_FALSE(CEXPR(IsAlnum('\n')));
 }
 
 TEST(CommonStr, IsAlnumSameAsStd) {
@@ -161,18 +161,18 @@ TEST(CommonStr, IsAlnumSameAsStd) {
 
 TEST(CommonStr, ToLowerConstexpr) {
     using namespace oops::str;
-    EXPECT_EQ(CONSTEXPR(ToLower('A')), 'a');
-    EXPECT_EQ(CONSTEXPR(ToLower('Z')), 'z');
+    EXPECT_EQ(CEXPR(ToLower('A')), 'a');
+    EXPECT_EQ(CEXPR(ToLower('Z')), 'z');
 
-    EXPECT_EQ(CONSTEXPR(ToLower('a')), 'a');
-    EXPECT_EQ(CONSTEXPR(ToLower('z')), 'z');
-    EXPECT_EQ(CONSTEXPR(ToLower('@')), '@');
-    EXPECT_EQ(CONSTEXPR(ToLower('[')), '[');
+    EXPECT_EQ(CEXPR(ToLower('a')), 'a');
+    EXPECT_EQ(CEXPR(ToLower('z')), 'z');
+    EXPECT_EQ(CEXPR(ToLower('@')), '@');
+    EXPECT_EQ(CEXPR(ToLower('[')), '[');
 
-    EXPECT_EQ(CONSTEXPR(ToLower('0')), '0');
-    EXPECT_EQ(CONSTEXPR(ToLower(' ')), ' ');
-    EXPECT_EQ(CONSTEXPR(ToLower('\0')), '\0');
-    EXPECT_EQ(CONSTEXPR(ToLower('\n')), '\n');
+    EXPECT_EQ(CEXPR(ToLower('0')), '0');
+    EXPECT_EQ(CEXPR(ToLower(' ')), ' ');
+    EXPECT_EQ(CEXPR(ToLower('\0')), '\0');
+    EXPECT_EQ(CEXPR(ToLower('\n')), '\n');
 }
 
 TEST(CommonStr, ToLowerSameAsStd) {
@@ -186,18 +186,18 @@ TEST(CommonStr, ToLowerSameAsStd) {
 
 TEST(CommonStr, ToUpper) {
     using namespace oops::str;
-    EXPECT_EQ(CONSTEXPR(ToLower('a')), 'a');
-    EXPECT_EQ(CONSTEXPR(ToLower('z')), 'z');
+    EXPECT_EQ(CEXPR(ToLower('a')), 'a');
+    EXPECT_EQ(CEXPR(ToLower('z')), 'z');
 
-    EXPECT_EQ(CONSTEXPR(ToLower('A')), 'a');
-    EXPECT_EQ(CONSTEXPR(ToLower('Z')), 'z');
-    EXPECT_EQ(CONSTEXPR(ToLower('`')), '`');
-    EXPECT_EQ(CONSTEXPR(ToLower('{')), '{');
+    EXPECT_EQ(CEXPR(ToLower('A')), 'a');
+    EXPECT_EQ(CEXPR(ToLower('Z')), 'z');
+    EXPECT_EQ(CEXPR(ToLower('`')), '`');
+    EXPECT_EQ(CEXPR(ToLower('{')), '{');
 
-    EXPECT_EQ(CONSTEXPR(ToLower('0')), '0');
-    EXPECT_EQ(CONSTEXPR(ToLower(' ')), ' ');
-    EXPECT_EQ(CONSTEXPR(ToLower('\0')), '\0');
-    EXPECT_EQ(CONSTEXPR(ToLower('\n')), '\n');
+    EXPECT_EQ(CEXPR(ToLower('0')), '0');
+    EXPECT_EQ(CEXPR(ToLower(' ')), ' ');
+    EXPECT_EQ(CEXPR(ToLower('\0')), '\0');
+    EXPECT_EQ(CEXPR(ToLower('\n')), '\n');
 }
 
 TEST(CommonStr, ToUpperSameAsStd) {
@@ -217,17 +217,6 @@ TEST(CommonStr, StrRepeat) {
     EXPECT_EQ(StrRepeat("", 0), "");
     EXPECT_EQ(StrRepeat("", 1), "");
     EXPECT_EQ(StrRepeat("", 3), "");
-}
-
-TEST(CommonStr, StrMul) {
-    using namespace oops;
-    using namespace std::literals;
-    EXPECT_EQ("abc"s * 0, "");
-    EXPECT_EQ("abc"s * 1, "abc");
-    EXPECT_EQ("abc"s * 3, "abcabcabc");
-    EXPECT_EQ(0 * "abc"s, "");
-    EXPECT_EQ(1 * "abc"s, "abc");
-    EXPECT_EQ(3 * "abc"s, "abcabcabc");
 }
 
 TEST(CommonStr, StrSplitBack) {

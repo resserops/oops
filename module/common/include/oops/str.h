@@ -6,9 +6,6 @@
 
 namespace oops {
 std::string StrRepeat(const std::string &str, size_t n);
-std::string operator*(const std::string &str, size_t n);
-std::string operator*(size_t n, const std::string &str);
-
 std::string StrSplitBack(const std::string &str, const std::string &delim);
 
 template <typename Iter>
@@ -29,24 +26,24 @@ std::string ToStr(const T &t);
 namespace str {
 constexpr std::string_view SPACE{" \t\n\r\v\f"};
 
-[[nodiscard]] constexpr bool IsUpper(char c) noexcept;
-[[nodiscard]] constexpr bool IsLower(char c) noexcept;
-[[nodiscard]] constexpr bool IsAlpha(char c) noexcept;
-[[nodiscard]] constexpr bool IsDigit(char c) noexcept;
-[[nodiscard]] constexpr bool IsAlnum(char c) noexcept;
-[[nodiscard]] constexpr char ToUpper(char c) noexcept;
-[[nodiscard]] constexpr char ToLower(char c) noexcept;
+constexpr bool IsUpper(char c) noexcept;
+constexpr bool IsLower(char c) noexcept;
+constexpr bool IsAlpha(char c) noexcept;
+constexpr bool IsDigit(char c) noexcept;
+constexpr bool IsAlnum(char c) noexcept;
+constexpr bool IsBlank(char c) noexcept;
+constexpr char ToUpper(char c) noexcept;
+constexpr char ToLower(char c) noexcept;
 
-[[nodiscard]] constexpr bool Equal(std::string_view lhs, std::string_view rhs) noexcept;
+constexpr bool Equal(std::string_view lhs, std::string_view rhs) noexcept;
 template <typename CharEqual>
-[[nodiscard]] constexpr bool Equal(std::string_view lhs, std::string_view rhs, CharEqual &&char_equal) noexcept;
+constexpr bool Equal(std::string_view lhs, std::string_view rhs, CharEqual &&char_equal) noexcept;
 template <typename CharEqual, typename Filter>
-[[nodiscard]] constexpr bool
-Equal(std::string_view lhs, std::string_view rhs, CharEqual &&char_equal, Filter &&filter) noexcept;
+constexpr bool Equal(std::string_view lhs, std::string_view rhs, CharEqual &&char_equal, Filter &&filter) noexcept;
 
-[[nodiscard]] bool StartsWith(std::string_view sv, std::string_view prefix);
-[[nodiscard]] bool EndsWith(std::string_view sv, std::string_view suffix);
-[[nodiscard]] std::string_view Strip(std::string_view sv, std::string_view chars = SPACE);
+bool StartsWith(std::string_view sv, std::string_view prefix);
+bool EndsWith(std::string_view sv, std::string_view suffix);
+std::string_view Strip(std::string_view sv, std::string_view chars = SPACE);
 
 template <typename T>
 T FromStr(const std::string_view sv);
