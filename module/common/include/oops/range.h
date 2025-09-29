@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iterator>
+#include <limits>
 #include <utility>
 
 namespace oops {
