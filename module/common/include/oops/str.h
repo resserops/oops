@@ -37,6 +37,13 @@ constexpr std::string_view SPACE{" \t\n\r\v\f"};
 [[nodiscard]] constexpr char ToUpper(char c) noexcept;
 [[nodiscard]] constexpr char ToLower(char c) noexcept;
 
+[[nodiscard]] constexpr bool Equal(std::string_view lhs, std::string_view rhs) noexcept;
+template <typename CharEqual>
+[[nodiscard]] constexpr bool Equal(std::string_view lhs, std::string_view rhs, CharEqual &&char_equal) noexcept;
+template <typename CharEqual, typename Filter>
+[[nodiscard]] constexpr bool
+Equal(std::string_view lhs, std::string_view rhs, CharEqual &&char_equal, Filter &&filter) noexcept;
+
 [[nodiscard]] bool StartsWith(std::string_view sv, std::string_view prefix);
 [[nodiscard]] bool EndsWith(std::string_view sv, std::string_view suffix);
 [[nodiscard]] std::string_view Strip(std::string_view sv, std::string_view chars = SPACE);

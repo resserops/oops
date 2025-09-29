@@ -71,13 +71,48 @@ constexpr bool IsLower(char c) noexcept { return 'a' <= c && c <= 'z'; }
 constexpr bool IsAlpha(char c) noexcept { return IsUpper(c) || IsLower(c); }
 constexpr bool IsDigit(char c) noexcept { return '0' <= c && c <= '9'; }
 constexpr bool IsAlnum(char c) noexcept { return IsAlpha(c) || IsDigit(c); }
-
 constexpr bool IsSpace(char c) noexcept {
     return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f';
 }
 
 constexpr char ToUpper(char c) noexcept { return IsLower(c) ? (c - 'a' + 'A') : c; }
 constexpr char ToLower(char c) noexcept { return IsUpper(c) ? (c - 'A' + 'a') : c; }
+
+constexpr bool Equal(std::string_view lhs, std::string_view rhs) noexcept { return lhs == rhs; }
+
+template <typename CharEqual>
+constexpr bool Equal(std::string_view lhs, std::string_view rhs, CharEqual &&char_equal) noexcept {
+    if (lhs.size() != rhs.size()) {
+        return false;
+    }
+    for (std::size_t i{0}; i < lhs.size(); ++i) {
+        if (!char_equal(lhs[i], rhs[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <typename CharEqual, typename Filter>
+constexpr bool Equal(std::string_view lhs, std::string_view rhs, CharEqual &&char_equal, Filter &&filter) noexcept {
+    for (size_t i{0}, j{0}; true; ++i, ++j) {
+        while (i < lhs.size() && !filter(lhs[i])) {
+            ++i;
+        }
+        while (j < rhs.size() && !filter(rhs[j])) {
+            ++j;
+        }
+        if (i == lhs.size() && j == rhs.size()) {
+            return true;
+        }
+        if (i == lhs.size() || j == rhs.size()) {
+            return false;
+        }
+        if (!char_equal(lhs[i], rhs[j])) {
+            return false;
+        }
+    }
+}
 
 template <typename T>
 T FromStr(const ::std::string_view sv) {
