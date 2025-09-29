@@ -1,6 +1,8 @@
 #include "oops/system_info.h"
 
+#include <array>
 #include <cassert>
+#include <cctype>
 #include <charconv>
 #include <cstdio>
 #include <fstream>
@@ -14,7 +16,8 @@
 #include "oops/format.h"
 #include "oops/str.h"
 
-#define REG(parse, format, member) parse(member), format(member)
+#define ENTRY(key, field, member, parse, format) \
+    oops::FieldEntry<Field, Info> { Field::field, #field, key, #member, parse(member), format(member) }
 
 #define PARSE(member) [](std::string_view value, Info &info) { return FromSv(value, info.member); }
 #define FORMAT(member) [](const Info &info) -> std::string { return info.member ? ToStr(*info.member) : ""; }
@@ -40,16 +43,21 @@ bool FromSv(std::string_view sv, std::optional<T> &value) {
     return true;
 }
 
-template <typename Info>
+template <typename Field, typename Info>
 struct FieldEntry {
+    Field field;
+    std::string_view field_str;
     std::string_view key;
-    std::function<bool(std::string_view, Info &)> parse;
-    std::function<std::string(const Info &)> format;
+    std::string_view member_str;
+    bool (*parse)(std::string_view, Info &);
+    std::string (*format)(const Info &);
 };
 
-template <typename Info, typename Field>
-Info GetPairedInfo(
-    std::istream &is, const std::vector<FieldEntry<Info>> &field_table, const EnumBitset<Field> &field_mask) {
+template <typename Field, typename Info>
+using FieldTable = std::array<FieldEntry<Field, Info>, ToUnderlying(Field::COUNT)>;
+
+template <typename Field, typename Info>
+Info GetPairedInfo(std::istream &is, const FieldTable<Field, Info> &field_table, const EnumBitset<Field> &field_mask) {
     Info info;
     std::string line_buf;
 
@@ -90,10 +98,10 @@ Info GetPairedInfo(
     return info;
 }
 
-template <typename Info, typename Field>
+// TODO(resserops): 传入bitmap判断打印哪些内容
+template <typename Field, typename Info>
 void OutputPairedInfo(
-    std::ostream &os, const Info &info, const std::vector<FieldEntry<Info>> &field_table,
-    const EnumBitset<Field> &) { // TODO(resserops): 传入bitmap判断打印哪些内容
+    std::ostream &os, const Info &info, const FieldTable<Field, Info> &field_table, const EnumBitset<Field> &) {
     FTable ftable;
     for (const auto &meta : field_table) {
         std::string value{meta.format(info)};
@@ -104,16 +112,40 @@ void OutputPairedInfo(
     os << ftable;
 }
 
+constexpr bool CaseInsensitiveEqual(char lhs, char rhs) noexcept { return str::ToLower(lhs) == str::ToLower(rhs); }
+
+template <typename Field, typename Info>
+constexpr bool CheckFieldTableMapping(const FieldTable<Field, Info> &field_table) {
+    if (field_table.size() != ToUnderlying(Field::COUNT)) {
+        return false;
+    }
+    for (std::size_t i{0}; i < field_table.size(); ++i) {
+        if (i != static_cast<std::size_t>(ToUnderlying(field_table[i].field))) {
+            return false;
+        }
+        if (!str::Equal(field_table[i].field_str, field_table[i].member_str, CaseInsensitiveEqual)) {
+            return false;
+        }
+        if (!str::Equal(field_table[i].key, field_table[i].field_str, CaseInsensitiveEqual, str::IsAlnum)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 namespace status {
-static const std::vector<FieldEntry<Info>> FIELD_TABLE{
-    {"VmPeak", REG(PARSE, FORMAT, vm_peak)},     {"VmSize", REG(PARSE, FORMAT, vm_size)},
-    {"VmLck", REG(PARSE, FORMAT, vm_lck)},       {"VmPin", REG(PARSE, FORMAT, vm_pin)},
-    {"VmHWM", REG(PARSE, FORMAT, vm_hwm)},       {"VmRSS", REG(PARSE, FORMAT, vm_rss)},
-    {"RssAnon", REG(PARSE, FORMAT, rss_anon)},   {"RssFile", REG(PARSE, FORMAT, rss_file)},
-    {"RssShmem", REG(PARSE, FORMAT, rss_shmem)}, {"VmData", REG(PARSE, FORMAT, vm_data)},
-    {"VmStk", REG(PARSE, FORMAT, vm_stk)},       {"VmExe", REG(PARSE, FORMAT, vm_exe)},
-    {"VmLib", REG(PARSE, FORMAT, vm_lib)},       {"VmPTE", REG(PARSE, FORMAT, vm_pte)},
-    {"VmSwap", REG(PARSE, FORMAT, vm_swap)}};
+using FieldTable = oops::FieldTable<Field, Info>;
+static constexpr FieldTable FIELD_TABLE{
+    ENTRY("VmPeak", VM_PEAK, vm_peak, PARSE, FORMAT),       ENTRY("VmSize", VM_SIZE, vm_size, PARSE, FORMAT),
+    ENTRY("VmLck", VM_LCK, vm_lck, PARSE, FORMAT),          ENTRY("VmPin", VM_PIN, vm_pin, PARSE, FORMAT),
+    ENTRY("VmHWM", VM_HWM, vm_hwm, PARSE, FORMAT),          ENTRY("VmRSS", VM_RSS, vm_rss, PARSE, FORMAT),
+    ENTRY("RssAnon", RSS_ANON, rss_anon, PARSE, FORMAT),    ENTRY("RssFile", RSS_FILE, rss_file, PARSE, FORMAT),
+    ENTRY("RssShmem", RSS_SHMEM, rss_shmem, PARSE, FORMAT), ENTRY("VmData", VM_DATA, vm_data, PARSE, FORMAT),
+    ENTRY("VmStk", VM_STK, vm_stk, PARSE, FORMAT),          ENTRY("VmExe", VM_EXE, vm_exe, PARSE, FORMAT),
+    ENTRY("VmLib", VM_LIB, vm_lib, PARSE, FORMAT),          ENTRY("VmPTE", VM_PTE, vm_pte, PARSE, FORMAT),
+    ENTRY("VmSwap", VM_SWAP, vm_swap, PARSE, FORMAT)};
+
+static_assert(CheckFieldTableMapping(FIELD_TABLE));
 
 Info Get() { return Get(~FieldMask{}); }
 Info Get(const FieldMask &field_mask) {
@@ -128,15 +160,18 @@ std::ostream &operator<<(std::ostream &out, const Info &info) {
 } // namespace status
 
 namespace lscpu {
-static const std::vector<FieldEntry<Info>> FIELD_TABLE{
-    {"Architecture", REG(PARSE, FORMAT, architecture)},
-    {"CPU(s)", REG(PARSE, FORMAT, cpus)},
-    {"Thread(s) per core", REG(PARSE, FORMAT, threads_per_core)},
-    {"Core(s) per socket", REG(PARSE, FORMAT, cores_per_socket)},
-    {"Socket(s)", REG(PARSE, FORMAT, sockets)},
-    {"NUMA node(s)", REG(PARSE, FORMAT, numa_nodes)},
-    {"Model name", REG(PARSE, FORMAT, model_name)},
-    {"CPU MHz", REG(PARSE, FORMAT, cpu_mhz)}};
+using FieldTable = oops::FieldTable<Field, Info>;
+static constexpr FieldTable FIELD_TABLE{
+    ENTRY("Architecture", ARCHITECTURE, architecture, PARSE, FORMAT),
+    ENTRY("CPU(s)", CPUS, cpus, PARSE, FORMAT),
+    ENTRY("Thread(s) per core", THREADS_PER_CORE, threads_per_core, PARSE, FORMAT),
+    ENTRY("Core(s) per socket", CORES_PER_SOCKET, cores_per_socket, PARSE, FORMAT),
+    ENTRY("Socket(s)", SOCKETS, sockets, PARSE, FORMAT),
+    ENTRY("NUMA node(s)", NUMA_NODES, numa_nodes, PARSE, FORMAT),
+    ENTRY("Model name", MODEL_NAME, model_name, PARSE, FORMAT),
+    ENTRY("CPU MHz", CPU_MHZ, cpu_mhz, PARSE, FORMAT)};
+
+static_assert(CheckFieldTableMapping(FIELD_TABLE));
 
 Info Get() { return Get(~FieldMask{}); }
 Info Get(const FieldMask &field_mask) {
