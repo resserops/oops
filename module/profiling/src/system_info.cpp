@@ -19,7 +19,7 @@
 #define ENTRY(key, field, member, parse, format) \
     oops::FieldEntry<Field, Info> { Field::field, #field, key, #member, parse(member), format(member) }
 
-#define PARSE(member) [](std::string_view value, Info &info) { return FromSv(value, info.member); }
+#define PARSE(member)  [](std::string_view value, Info &info) { return FromSv(value, info.member); }
 #define FORMAT(member) [](const Info &info) -> std::string { return info.member ? ToStr(*info.member) : ""; }
 
 namespace oops {
