@@ -12,17 +12,16 @@
 #include <sstream>
 #include <stdexcept>
 #include <string_view>
+#include <variant>
 
 #include "oops/format.h"
 #include "oops/str.h"
 
 #define ENTRY(key, field, member, parse, format) \
-    oops::FieldEntry<Field, Info> { Field::field, #field, key, #member, parse(member), format(member) }
-
-#define PARSE(member)  [](std::string_view value, Info &info) { return FromSv(value, info.member); }
-#define FORMAT(member) [](const Info &info) -> std::string { return info.member ? ToStr(*info.member) : ""; }
+    oops::FieldEntry<Field, Info, MemberPtrVar>({Field::field, #field, key, #member, &Info::member, parse, format})
 
 namespace oops {
+// 获取命令输出
 std::string GetCmdOutput(const std::string &cmd) {
     std::unique_ptr<FILE, decltype(&pclose)> p{popen(cmd.c_str(), "r"), &pclose};
     std::string output;
@@ -37,27 +36,75 @@ std::string GetCmdOutput(const std::string &cmd) {
     return output;
 }
 
+// 单字段的提取、解析
 template <typename T>
 bool FromSv(std::string_view sv, std::optional<T> &value) {
     value = str::FromStr<T>(sv);
     return true;
 }
 
-template <typename Field, typename Info>
+template <typename Info, typename MemberPtrVar>
+bool Parse(std::string_view value, MemberPtrVar member_ptr_var, Info &info) {
+    auto f = [value, &info](auto member_ptr) {
+        auto &member{info.*member_ptr};
+        return FromSv(value, member);
+    };
+    return std::visit(f, member_ptr_var);
+}
+
+template <typename Info, typename MemberPtrVar>
+std::string Format(MemberPtrVar member_ptr_var, const Info &info) {
+    auto f = [&info](auto member_ptr) -> std::string {
+        auto &member{info.*member_ptr};
+        if (!member) {
+            return {};
+        }
+        return ToStr(*member);
+    };
+    return std::visit(f, member_ptr_var);
+}
+
+// 用于解析PairedInfo的字段表
+template <typename Field, typename Info, typename MemberPtrVar>
 struct FieldEntry {
     Field field;
     std::string_view field_str;
     std::string_view key;
     std::string_view member_str;
-    bool (*parse)(std::string_view, Info &);
-    std::string (*format)(const Info &);
+    MemberPtrVar member_ptr_var;
+    bool (*parse)(std::string_view, MemberPtrVar, Info &);
+    std::string (*format)(MemberPtrVar, const Info &);
 };
 
-template <typename Field, typename Info>
-using FieldTable = std::array<FieldEntry<Field, Info>, ToUnderlying(Field::COUNT)>;
+template <typename Field, typename Info, typename MemberPtrVar>
+using FieldTable = std::array<FieldEntry<Field, Info, MemberPtrVar>, ToUnderlying(Field::COUNT)>;
 
-template <typename Field, typename Info>
-Info GetPairedInfo(std::istream &is, const FieldTable<Field, Info> &field_table, const EnumBitset<Field> &field_mask) {
+// 判断字段表是否合法的编译期检查函数
+constexpr bool CaseInsensitiveEqual(char lhs, char rhs) noexcept { return str::ToLower(lhs) == str::ToLower(rhs); }
+
+template <typename Field, typename Info, typename MemberPtrVar>
+constexpr bool CheckFieldTableMapping(const FieldTable<Field, Info, MemberPtrVar> &field_table) {
+    if (field_table.size() != ToUnderlying(Field::COUNT)) {
+        return false;
+    }
+    for (std::size_t i{0}; i < field_table.size(); ++i) {
+        if (i != static_cast<std::size_t>(ToUnderlying(field_table[i].field))) {
+            return false;
+        }
+        if (!str::Equal(field_table[i].field_str, field_table[i].member_str, CaseInsensitiveEqual)) {
+            return false;
+        }
+        if (!str::Equal(field_table[i].key, field_table[i].field_str, CaseInsensitiveEqual, str::IsAlnum)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// 针对PariedInfo解析和打印的通用函数
+template <typename Field, typename Info, typename MemberPtrVar>
+Info GetPairedInfo(
+    std::istream &is, const FieldTable<Field, Info, MemberPtrVar> &field_table, const EnumBitset<Field> &field_mask) {
     Info info;
     std::string line_buf;
 
@@ -89,7 +136,7 @@ Info GetPairedInfo(std::istream &is, const FieldTable<Field, Info> &field_table,
             continue;
         }
 
-        field_table[i].parse(value, info);
+        field_table[i].parse(value, field_table[i].member_ptr_var, info);
         checked |= static_cast<Field>(i);
         if (checked == field_mask) {
             break;
@@ -99,12 +146,13 @@ Info GetPairedInfo(std::istream &is, const FieldTable<Field, Info> &field_table,
 }
 
 // TODO(resserops): 传入bitmap判断打印哪些内容
-template <typename Field, typename Info>
+template <typename Field, typename Info, typename MemberPtrVar>
 void OutputPairedInfo(
-    std::ostream &os, const Info &info, const FieldTable<Field, Info> &field_table, const EnumBitset<Field> &) {
+    std::ostream &os, const Info &info, const FieldTable<Field, Info, MemberPtrVar> &field_table,
+    const EnumBitset<Field> &) {
     FTable ftable;
     for (const auto &meta : field_table) {
-        std::string value{meta.format(info)};
+        std::string value{meta.format(meta.member_ptr_var, info)};
         if (!value.empty()) {
             ftable.AppendRow(std::string{meta.key} + ":", value);
         }
@@ -112,30 +160,13 @@ void OutputPairedInfo(
     os << ftable;
 }
 
-constexpr bool CaseInsensitiveEqual(char lhs, char rhs) noexcept { return str::ToLower(lhs) == str::ToLower(rhs); }
-
-template <typename Field, typename Info>
-constexpr bool CheckFieldTableMapping(const FieldTable<Field, Info> &field_table) {
-    if (field_table.size() != ToUnderlying(Field::COUNT)) {
-        return false;
-    }
-    for (std::size_t i{0}; i < field_table.size(); ++i) {
-        if (i != static_cast<std::size_t>(ToUnderlying(field_table[i].field))) {
-            return false;
-        }
-        if (!str::Equal(field_table[i].field_str, field_table[i].member_str, CaseInsensitiveEqual)) {
-            return false;
-        }
-        if (!str::Equal(field_table[i].key, field_table[i].field_str, CaseInsensitiveEqual, str::IsAlnum)) {
-            return false;
-        }
-    }
-    return true;
-}
-
 namespace proc {
 namespace status {
-using FieldTable = oops::FieldTable<Field, Info>;
+using MemberPtrVar = std::variant<std::optional<size_t> Info::*>; // 定义所有类型的成员变量指针
+constexpr auto PARSE{oops::Parse<Info, MemberPtrVar>};
+constexpr auto FORMAT{oops::Format<Info, MemberPtrVar>};
+
+using FieldTable = oops::FieldTable<Field, Info, MemberPtrVar>;
 static constexpr FieldTable FIELD_TABLE{
     ENTRY("VmPeak", VM_PEAK, vm_peak, PARSE, FORMAT),       ENTRY("VmSize", VM_SIZE, vm_size, PARSE, FORMAT),
     ENTRY("VmLck", VM_LCK, vm_lck, PARSE, FORMAT),          ENTRY("VmPin", VM_PIN, vm_pin, PARSE, FORMAT),
@@ -172,7 +203,13 @@ namespace numa_maps {
 } // namespace proc
 
 namespace lscpu {
-using FieldTable = oops::FieldTable<Field, Info>;
+using MemberPtrVar = std::variant<
+    std::optional<size_t> Info::*, std::optional<std::string> Info::*,
+    std::optional<double> Info::*>; // 定义所有类型的成员变量指针
+constexpr auto PARSE{oops::Parse<Info, MemberPtrVar>};
+constexpr auto FORMAT{oops::Format<Info, MemberPtrVar>};
+
+using FieldTable = oops::FieldTable<Field, Info, MemberPtrVar>;
 static constexpr FieldTable FIELD_TABLE{
     ENTRY("Architecture", ARCHITECTURE, architecture, PARSE, FORMAT),
     ENTRY("CPU(s)", CPUS, cpus, PARSE, FORMAT),
