@@ -133,6 +133,7 @@ constexpr bool CheckFieldTableMapping(const FieldTable<Field, Info> &field_table
     return true;
 }
 
+namespace proc {
 namespace status {
 using FieldTable = oops::FieldTable<Field, Info>;
 static constexpr FieldTable FIELD_TABLE{
@@ -148,8 +149,15 @@ static constexpr FieldTable FIELD_TABLE{
 static_assert(CheckFieldTableMapping(FIELD_TABLE));
 
 Info Get() { return Get(~FieldMask{}); }
+Info Get(int pid) { return Get(pid, ~FieldMask{}); }
+
 Info Get(const FieldMask &field_mask) {
     std::ifstream ifs("/proc/self/status");
+    return GetPairedInfo(ifs, FIELD_TABLE, field_mask);
+}
+
+Info Get(int pid, const FieldMask &field_mask) {
+    std::ifstream ifs(std::string{"/proc/"} + std::to_string(pid) + "/status");
     return GetPairedInfo(ifs, FIELD_TABLE, field_mask);
 }
 
@@ -158,6 +166,10 @@ std::ostream &operator<<(std::ostream &out, const Info &info) {
     return out;
 }
 } // namespace status
+namespace numa_maps {
+// TODO(resserops): 补充实现
+} // namespace numa_maps
+} // namespace proc
 
 namespace lscpu {
 using FieldTable = oops::FieldTable<Field, Info>;

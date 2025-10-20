@@ -5,10 +5,12 @@
 #include <cstdint>
 #include <optional>
 #include <type_traits>
+#include <vector>
 
 #include "oops/enum_bitset.h"
 
 namespace oops {
+namespace proc {
 namespace status {
 enum class Field {
     VM_PEAK,
@@ -29,6 +31,7 @@ enum class Field {
     COUNT
 };
 using FieldMask = EnumBitset<Field>;
+using oops::operator|; // 支持Field和FieldMask或运算ADL
 
 // 当前只解析内存部分
 struct Info {
@@ -50,9 +53,37 @@ struct Info {
 };
 
 [[nodiscard]] Info Get();
+[[nodiscard]] Info Get(int pid);
 [[nodiscard]] Info Get(const FieldMask &field_mask);
+[[nodiscard]] Info Get(int pid, const FieldMask &field_mask);
 ::std::ostream &operator<<(::std::ostream &out, const Info &info);
 } // namespace status
+namespace numa_maps {
+// Since Linux 2.6.14
+struct MemoryRange {
+    uintptr_t start_addr;
+    std::string memory_policy;
+    std::vector<std::size_t> n_nodes; // nr_pages
+    std::optional<std::string> file;  // filename
+    bool heap;
+    bool stack;
+    bool huge;
+    std::optional<std::size_t> anon;
+    std::optional<std::size_t> dirty;
+    std::optional<std::size_t> mapped;    // pages
+    std::optional<std::size_t> mapmax;    // count
+    std::optional<std::size_t> swapcache; // count
+    std::optional<std::size_t> active;    //  pages
+    std::optional<std::size_t> writeback; // pages
+};
+
+struct Info {
+    std::vector<MemoryRange> memory_ranges;
+};
+
+[[nodiscard]] Info Get();
+} // namespace numa_maps
+} // namespace proc
 
 namespace lscpu {
 enum class Field {
@@ -67,6 +98,7 @@ enum class Field {
     COUNT
 };
 using FieldMask = EnumBitset<Field>;
+using oops::operator|; // 支持Field和FieldMask或运算ADL
 
 struct Info {
     std::optional<std::string> architecture;

@@ -26,7 +26,7 @@ static constexpr struct {
 template <auto Value>
 constexpr auto CONSTEXPR_VALUE{Value};
 
-#define CEXPR(expr) (CONSTEXPR_VALUE<expr>) // compile-time
+#define CEXPR(expr) (CONSTEXPR_VALUE<expr>) // expr must be eval at compile-time
 
 TEST(CommonStr, IsUpper) {
     using namespace oops::str;
