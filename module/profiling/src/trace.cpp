@@ -47,6 +47,7 @@ TimeInterval TimeInterval::operator-(const TimeInterval &rhs) const {
 TimeInterval operator-(const TimePoint &lhs, const TimePoint &rhs) { return {lhs.time_point - rhs.time_point}; }
 
 Memory Memory::Get() {
+    using namespace proc;
     Memory memory;
     auto status_info{status::Get(status::Field::VM_RSS | status::Field::VM_HWM | status::Field::VM_SWAP)};
     memory.rss = *status_info.vm_rss;

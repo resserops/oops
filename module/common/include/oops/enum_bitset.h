@@ -30,12 +30,12 @@ public:
 };
 
 template <typename E>
-typename std::enable_if<std::is_enum<E>::value, EnumBitset<E>>::type operator|(const EnumBitset<E> &lhs, const E rhs) {
+std::enable_if_t<std::is_enum<E>::value, EnumBitset<E>> operator|(const EnumBitset<E> &lhs, const E rhs) {
     return lhs | EnumBitset{rhs};
 }
 
 template <typename E>
-typename std::enable_if<std::is_enum<E>::value, EnumBitset<E>>::type operator|(const E lhs, const E rhs) {
+std::enable_if_t<std::is_enum<E>::value, EnumBitset<E>> operator|(const E lhs, const E rhs) {
     return EnumBitset{lhs} | EnumBitset{rhs};
 }
 } // namespace oops
