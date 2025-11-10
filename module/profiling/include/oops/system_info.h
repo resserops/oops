@@ -65,15 +65,16 @@ struct MemoryRange {
     std::string memory_policy;
     std::vector<std::size_t> n_nodes; // nr_pages
     std::optional<std::string> file;  // filename
-    bool heap;
-    bool stack;
-    bool huge;
+    // 暂用opt<mono>表达一个key有或无的二元状态，相比bool形式上更加统一
+    std::optional<std::monostate> heap;
+    std::optional<std::monostate> stack;
+    std::optional<std::monostate> huge;
     std::optional<std::size_t> anon;
     std::optional<std::size_t> dirty;
     std::optional<std::size_t> mapped;    // pages
     std::optional<std::size_t> mapmax;    // count
     std::optional<std::size_t> swapcache; // count
-    std::optional<std::size_t> active;    //  pages
+    std::optional<std::size_t> active;    // pages
     std::optional<std::size_t> writeback; // pages
 };
 

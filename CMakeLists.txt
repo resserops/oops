@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16.5)
 
 project(oops VERSION 0.1.0)
 
-# option
+# options
 option(ENABLE_ASAN "Enable ASan for memory error detection" OFF)
 option(ENABLE_TEST "Build test suites for each module" OFF)
 

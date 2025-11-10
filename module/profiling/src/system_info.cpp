@@ -198,7 +198,18 @@ std::ostream &operator<<(std::ostream &out, const Info &info) {
 }
 } // namespace status
 namespace numa_maps {
-// TODO(resserops): 补充实现
+using MemberPtrVar = std::variant<uintptr_t MemoryRange::*, std::optional<size_t> MemoryRange::*, >; // 定义所有类型的成员变量指针
+constexpr auto PARSE{oops::Parse<Info, MemberPtrVar>};
+constexpr auto FORMAT{oops::Format<Info, MemberPtrVar>};
+
+Info Get() {
+    std::ifstream ifs("/proc/self/numa_maps");
+    std::string line_buf;
+    while (std::getline(ifs, line_buf)) {
+        std::string_view line{line_buf};
+        std::vector<std::string> sd;
+    }
+}
 } // namespace numa_maps
 } // namespace proc
 
