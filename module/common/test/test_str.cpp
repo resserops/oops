@@ -1,27 +1,11 @@
 #include <type_traits>
 
-#include "oops/range.h"
 #include "oops/str.h"
+#include "oops/view.h"
 #include "gtest/gtest.h"
 
-static constexpr struct {
-    class Iter {
-    public:
-        constexpr explicit Iter(short value) : value_{value} {}
-        constexpr char operator*() const noexcept { return value_; }
-        constexpr bool operator!=(Iter rhs) const noexcept { return value_ != rhs.value_; }
-        constexpr Iter &operator++() noexcept {
-            ++value_;
-            return *this;
-        }
-
-    private:
-        short value_;
-    };
-
-    constexpr Iter begin() const noexcept { return Iter{std::numeric_limits<char>::min()}; }
-    constexpr Iter end() const noexcept { return Iter{static_cast<short>(std::numeric_limits<char>::max()) + 1}; }
-} CHAR_SET;
+auto CHAR_SET{
+    oops::Iota<int>(std::numeric_limits<char>::min(), static_cast<short>(std::numeric_limits<char>::max()) + 1)};
 
 template <auto Value>
 constexpr auto CONSTEXPR_VALUE{Value};
@@ -151,12 +135,15 @@ TEST(CommonStr, IsAlnum) {
 }
 
 TEST(CommonStr, IsAlnumSameAsStd) {
+    std::size_t count{0};
     for (char c : CHAR_SET) {
         int c_int{static_cast<unsigned char>(c)};
         // TODO(resserops): 后续16进制通过formatter控制
         EXPECT_EQ(oops::str::IsAlnum(c), std::isalnum(c_int) != 0)
             << "Char: 0x" << std::hex << c_int << (std::isprint(c_int) ? std::string{" '"} + c + "'" : "");
+        ++count;
     }
+    EXPECT_EQ(count, 1ull << __CHAR_BIT__);
 }
 
 TEST(CommonStr, ToLowerConstexpr) {
