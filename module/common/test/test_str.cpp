@@ -13,7 +13,7 @@ constexpr auto CONSTEXPR_VALUE{Value};
 #define CEXPR(expr) (CONSTEXPR_VALUE<expr>) // expr must be eval at compile-time
 
 TEST(CommonStr, IsUpper) {
-    using namespace oops::str;
+    using namespace oops;
     EXPECT_TRUE(CEXPR(IsUpper('A')));
     EXPECT_TRUE(CEXPR(IsUpper('Z')));
 
@@ -32,13 +32,13 @@ TEST(CommonStr, IsUpperSameAsStd) {
     for (char c : CHAR_SET) {
         int c_int{static_cast<unsigned char>(c)};
         // TODO(resserops): 后续16进制通过formatter控制
-        EXPECT_EQ(oops::str::IsUpper(c), std::isupper(c_int) != 0)
+        EXPECT_EQ(oops::IsUpper(c), std::isupper(c_int) != 0)
             << "Char: 0x" << std::hex << c_int << (std::isprint(c_int) ? std::string{" '"} + c + "'" : "");
     }
 }
 
 TEST(CommonStr, IsLower) {
-    using namespace oops::str;
+    using namespace oops;
     EXPECT_TRUE(CEXPR(IsLower('a')));
     EXPECT_TRUE(CEXPR(IsLower('z')));
 
@@ -57,13 +57,13 @@ TEST(CommonStr, IsLowerSameAsStd) {
     for (char c : CHAR_SET) {
         int c_int{static_cast<unsigned char>(c)};
         // TODO(resserops): 后续16进制通过formatter控制
-        EXPECT_EQ(oops::str::IsLower(c), std::islower(c_int) != 0)
+        EXPECT_EQ(oops::IsLower(c), std::islower(c_int) != 0)
             << "Char: 0x" << std::hex << c_int << (std::isprint(c_int) ? std::string{" '"} + c + "'" : "");
     }
 }
 
 TEST(CommonStr, IsAlpha) {
-    using namespace oops::str;
+    using namespace oops;
     EXPECT_TRUE(CEXPR(IsAlpha('A')));
     EXPECT_TRUE(CEXPR(IsAlpha('Z')));
     EXPECT_TRUE(CEXPR(IsAlpha('a')));
@@ -84,13 +84,13 @@ TEST(CommonStr, IsAlphaSameAsStd) {
     for (char c : CHAR_SET) {
         int c_int{static_cast<unsigned char>(c)};
         // TODO(resserops): 后续16进制通过formatter控制
-        EXPECT_EQ(oops::str::IsAlpha(c), std::isalpha(c_int) != 0)
+        EXPECT_EQ(oops::IsAlpha(c), std::isalpha(c_int) != 0)
             << "Char: 0x" << std::hex << c_int << (std::isprint(c_int) ? std::string{" '"} + c + "'" : "");
     }
 }
 
 TEST(CommonStr, IsDigit) {
-    using namespace oops::str;
+    using namespace oops;
     EXPECT_TRUE(CEXPR(IsDigit('0')));
     EXPECT_TRUE(CEXPR(IsDigit('9')));
 
@@ -108,13 +108,13 @@ TEST(CommonStr, IsDigitSameAsStd) {
     for (char c : CHAR_SET) {
         int c_int{static_cast<unsigned char>(c)};
         // TODO(resserops): 后续16进制通过formatter控制
-        EXPECT_EQ(oops::str::IsDigit(c), std::isdigit(c_int) != 0)
+        EXPECT_EQ(oops::IsDigit(c), std::isdigit(c_int) != 0)
             << "Char: 0x" << std::hex << c_int << (std::isprint(c_int) ? std::string{" '"} + c + "'" : "");
     }
 }
 
 TEST(CommonStr, IsAlnum) {
-    using namespace oops::str;
+    using namespace oops;
     EXPECT_TRUE(CEXPR(IsAlnum('A')));
     EXPECT_TRUE(CEXPR(IsAlnum('Z')));
     EXPECT_TRUE(CEXPR(IsAlnum('a')));
@@ -139,7 +139,7 @@ TEST(CommonStr, IsAlnumSameAsStd) {
     for (char c : CHAR_SET) {
         int c_int{static_cast<unsigned char>(c)};
         // TODO(resserops): 后续16进制通过formatter控制
-        EXPECT_EQ(oops::str::IsAlnum(c), std::isalnum(c_int) != 0)
+        EXPECT_EQ(oops::IsAlnum(c), std::isalnum(c_int) != 0)
             << "Char: 0x" << std::hex << c_int << (std::isprint(c_int) ? std::string{" '"} + c + "'" : "");
         ++count;
     }
@@ -147,7 +147,7 @@ TEST(CommonStr, IsAlnumSameAsStd) {
 }
 
 TEST(CommonStr, ToLowerConstexpr) {
-    using namespace oops::str;
+    using namespace oops;
     EXPECT_EQ(CEXPR(ToLower('A')), 'a');
     EXPECT_EQ(CEXPR(ToLower('Z')), 'z');
 
@@ -166,13 +166,13 @@ TEST(CommonStr, ToLowerSameAsStd) {
     for (char c : CHAR_SET) {
         int c_int{static_cast<unsigned char>(c)};
         // TODO(resserops): 后续16进制通过formatter控制
-        EXPECT_EQ(oops::str::ToLower(c), static_cast<char>(std::tolower(c_int)))
+        EXPECT_EQ(oops::ToLower(c), static_cast<char>(std::tolower(c_int)))
             << "Char: 0x" << std::hex << c_int << (std::isprint(c_int) ? std::string{" '"} + c + "'" : "");
     }
 }
 
 TEST(CommonStr, ToUpper) {
-    using namespace oops::str;
+    using namespace oops;
     EXPECT_EQ(CEXPR(ToLower('a')), 'a');
     EXPECT_EQ(CEXPR(ToLower('z')), 'z');
 
@@ -191,56 +191,56 @@ TEST(CommonStr, ToUpperSameAsStd) {
     for (char c : CHAR_SET) {
         int c_int{static_cast<unsigned char>(c)};
         // TODO(resserops): 后续16进制通过formatter控制
-        EXPECT_EQ(oops::str::ToUpper(c), static_cast<char>(std::toupper(c_int)))
+        EXPECT_EQ(oops::ToUpper(c), static_cast<char>(std::toupper(c_int)))
             << "Char: 0x" << std::hex << c_int << (std::isprint(c_int) ? std::string{" '"} + c + "'" : "");
     }
 }
 
-TEST(CommonStr, StrRepeat) {
+TEST(CommonStr, Repeat) {
     using namespace oops;
-    EXPECT_EQ(StrRepeat("abc", 0), "");
-    EXPECT_EQ(StrRepeat("abc", 1), "abc");
-    EXPECT_EQ(StrRepeat("abc", 3), "abcabcabc");
-    EXPECT_EQ(StrRepeat("", 0), "");
-    EXPECT_EQ(StrRepeat("", 1), "");
-    EXPECT_EQ(StrRepeat("", 3), "");
+    EXPECT_EQ(Repeat("abc", 0), "");
+    EXPECT_EQ(Repeat("abc", 1), "abc");
+    EXPECT_EQ(Repeat("abc", 3), "abcabcabc");
+    EXPECT_EQ(Repeat("", 0), "");
+    EXPECT_EQ(Repeat("", 1), "");
+    EXPECT_EQ(Repeat("", 3), "");
 }
 
-TEST(CommonStr, StrSplitBack) {
+TEST(CommonStr, SplitBack) {
     using namespace oops;
-    EXPECT_EQ(StrSplitBack("abc/def/ghi", "/"), "ghi");
-    EXPECT_EQ(StrSplitBack("abc/def/ghi/", "/"), "");
-    EXPECT_EQ(StrSplitBack("/", "/"), "");
-    EXPECT_EQ(StrSplitBack("abc", "/"), "abc");
-    EXPECT_EQ(StrSplitBack("", "/"), "");
-    EXPECT_EQ(StrSplitBack("abc", ""), "");
+    EXPECT_EQ(SplitBack("abc/def/ghi", "/"), "ghi");
+    EXPECT_EQ(SplitBack("abc/def/ghi/", "/"), "");
+    EXPECT_EQ(SplitBack("/", "/"), "");
+    EXPECT_EQ(SplitBack("abc", "/"), "abc");
+    EXPECT_EQ(SplitBack("", "/"), "");
+    EXPECT_EQ(SplitBack("abc", ""), "");
 }
 
-TEST(CommonStr, StrSplitToIter) {
+TEST(CommonStr, Split) {
     using namespace oops;
     std::vector<std::string> res;
-    StrSplitToIter("abc defg hi", std::back_inserter(res));
+    Split("abc defg hi", std::back_inserter(res));
     EXPECT_EQ(res, (std::vector<std::string>{"abc", "defg", "hi"}));
 
     res.clear();
     EXPECT_TRUE(res.empty());
-    StrSplitToIter(" abc   defg hi  ", std::back_inserter(res));
+    Split(" abc   defg hi  ", std::back_inserter(res));
     EXPECT_EQ(res, (std::vector<std::string>{"abc", "defg", "hi"}));
 
     res.clear();
-    StrSplitToIter("\nabc \t defg\fhi  ", std::back_inserter(res));
+    Split("\nabc \t defg\fhi  ", std::back_inserter(res));
     EXPECT_EQ(res, (std::vector<std::string>{"abc", "defg", "hi"}));
 }
 
-TEST(CommonStr, StrSplitToIterDelim) {
+TEST(CommonStr, SplitDelim) {
     using namespace oops;
     std::vector<std::string> res;
-    StrSplitToIter("abc:defg:hi", ":", std::back_inserter(res));
+    Split("abc:defg:hi", ":", std::back_inserter(res));
     EXPECT_EQ(res, (std::vector<std::string>{"abc", "defg", "hi"}));
 }
 
 TEST(CommonStr, StartsWith) {
-    using namespace oops::str;
+    using namespace oops;
     EXPECT_TRUE(StartsWith("abc", ""));
     EXPECT_TRUE(StartsWith("abc", "a"));
     EXPECT_TRUE(StartsWith("abc", "ab"));
@@ -252,7 +252,7 @@ TEST(CommonStr, StartsWith) {
 }
 
 TEST(CommonStr, EndsWith) {
-    using namespace oops::str;
+    using namespace oops;
     EXPECT_TRUE(EndsWith("abc", ""));
     EXPECT_TRUE(EndsWith("abc", "c"));
     EXPECT_TRUE(EndsWith("abc", "bc"));
@@ -264,7 +264,7 @@ TEST(CommonStr, EndsWith) {
 }
 
 TEST(CommonStr, Strip) {
-    using namespace oops::str;
+    using namespace oops;
     EXPECT_EQ(Strip(""), "");
     EXPECT_EQ(Strip(" "), "");
     EXPECT_EQ(Strip("  "), "");

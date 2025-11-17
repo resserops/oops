@@ -39,7 +39,7 @@ std::string GetCmdOutput(const std::string &cmd) {
 // 单字段的提取、解析
 template <typename T>
 bool FromSv(std::string_view sv, std::optional<T> &value) {
-    value = str::FromStr<T>(sv);
+    value = FromStr<T>(sv);
     return true;
 }
 
@@ -80,7 +80,7 @@ template <typename Field, typename Info, typename MemberPtrVar>
 using FieldTable = std::array<FieldEntry<Field, Info, MemberPtrVar>, ToUnderlying(Field::COUNT)>;
 
 // 判断字段表是否合法的编译期检查函数
-constexpr bool CaseInsensitiveEqual(char lhs, char rhs) noexcept { return str::ToLower(lhs) == str::ToLower(rhs); }
+constexpr bool CaseInsensitiveEqual(char lhs, char rhs) noexcept { return ToLower(lhs) == ToLower(rhs); }
 
 template <typename Field, typename Info, typename MemberPtrVar>
 constexpr bool CheckFieldTableMapping(const FieldTable<Field, Info, MemberPtrVar> &field_table) {
@@ -91,10 +91,10 @@ constexpr bool CheckFieldTableMapping(const FieldTable<Field, Info, MemberPtrVar
         if (i != static_cast<std::size_t>(ToUnderlying(field_table[i].field))) {
             return false;
         }
-        if (!str::Equal(field_table[i].field_str, field_table[i].member_str, CaseInsensitiveEqual)) {
+        if (!Equal(field_table[i].field_str, field_table[i].member_str, CaseInsensitiveEqual)) {
             return false;
         }
-        if (!str::Equal(field_table[i].key, field_table[i].field_str, CaseInsensitiveEqual, str::IsAlnum)) {
+        if (!Equal(field_table[i].key, field_table[i].field_str, CaseInsensitiveEqual, IsAlnum)) {
             return false;
         }
     }
@@ -116,7 +116,7 @@ Info GetPairedInfo(
             continue;
         }
 
-        std::string_view key{str::Strip(line.substr(0, pos))};
+        std::string_view key{Strip(line.substr(0, pos))};
         if (key.empty()) {
             continue;
         }
@@ -131,7 +131,7 @@ Info GetPairedInfo(
             continue;
         }
 
-        std::string_view value{str::Strip(line.substr(pos + 1))};
+        std::string_view value{Strip(line.substr(pos + 1))};
         if (value.empty()) {
             continue;
         }
