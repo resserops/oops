@@ -72,7 +72,7 @@ void RecordTable::Output(std::ostream &out) const {
         std::string time_ratio_str{ToStr(FFloatPoint{100 * record.GetTime() / root_itv.GetTime()}) + "%"};
         std::string time_str{ToStr(FFloatPoint{record.GetTime()}.SetPrecision(3))};
         ftable.AppendRow(
-            StrRepeat("  ", record.depth) + record.GetLabelStr(), record.count, time_str, time_ratio_str,
+            Repeat("  ", record.depth) + record.GetLabelStr(), record.count, time_str, time_ratio_str,
             record.GetRssGiB(), record.GetHwmGiB(), record.GetSwapGiB(), record.GetLocationStr());
     }
     out << ftable;

@@ -7,18 +7,30 @@
 
 namespace oops {
 template <typename Iter>
-void StrSplitToIter(const std::string &str, Iter iter) {
+void Split(const std::string &str, Iter iter) {
     constexpr const char SPACE[]{" \t\n\r\v\f"};
-    return StrSplitToIterMultiDelim(str, SPACE, true, iter);
+    return SplitMultiDelim(str, SPACE, true, iter);
 }
 
 template <typename Iter>
-void StrSplitToIter(const std::string &str, const std::string &delim, Iter iter) {
-    StrSplitToIter(str, delim, false, iter);
+void Split(const std::string &str, bool skip_empty, Iter iter) {
+    std::cout << "Do" << std::endl;
+    constexpr const char SPACE[]{" \t\n\r\v\f"};
+    return SplitMultiDelim(str, SPACE, skip_empty, iter);
 }
 
 template <typename Iter>
-void StrSplitToIter(const std::string &str, const std::string &delim, bool skip_empty, Iter iter) {
+void Split(const std::string &str, const char *delim, Iter iter) {
+    Split(str, delim, false, iter);
+}
+
+template <typename Iter>
+void Split(const std::string &str, const std::string &delim, Iter iter) {
+    Split(str, delim, false, iter);
+}
+
+template <typename Iter>
+void Split(const std::string &str, const std::string &delim, bool skip_empty, Iter iter) {
     size_t begin{0}; // 每个分割字串的头部
     while (begin < str.size()) {
         size_t end{str.find(delim, begin)};
@@ -36,12 +48,12 @@ void StrSplitToIter(const std::string &str, const std::string &delim, bool skip_
 }
 
 template <typename Iter>
-void StrSplitToIterMultiDelim(const std::string &str, const std::string &delims, Iter iter) {
-    StrSplitToIterMultiDelim(str, delims, false, iter);
+void SplitMultiDelim(const std::string &str, const std::string &delims, Iter iter) {
+    SplitMultiDelim(str, delims, false, iter);
 }
 
 template <typename Iter>
-void StrSplitToIterMultiDelim(const std::string &str, const std::string &delims, bool skip_empty, Iter iter) {
+void SplitMultiDelim(const std::string &str, const std::string &delims, bool skip_empty, Iter iter) {
     size_t begin{0};
     while (begin < str.size()) {
         size_t end{str.find_first_of(delims, begin)};
@@ -58,14 +70,6 @@ void StrSplitToIterMultiDelim(const std::string &str, const std::string &delims,
     }
 }
 
-template <typename T>
-::std::string ToStr(const T &t) {
-    ::std::ostringstream oss;
-    oss << t;
-    return oss.str();
-}
-
-namespace str {
 constexpr bool IsUpper(char c) noexcept { return 'A' <= c && c <= 'Z'; }
 constexpr bool IsLower(char c) noexcept { return 'a' <= c && c <= 'z'; }
 constexpr bool IsAlpha(char c) noexcept { return IsUpper(c) || IsLower(c); }
@@ -115,6 +119,13 @@ constexpr bool Equal(std::string_view lhs, std::string_view rhs, CharEqual &&cha
 }
 
 template <typename T>
+::std::string ToStr(const T &t) {
+    ::std::ostringstream oss;
+    oss << t;
+    return oss.str();
+}
+
+template <typename T>
 T FromStr(const ::std::string_view sv) {
     ::std::istringstream iss{::std::string{sv}}; // TODO(resserops): 优化自定义stream
     T t{};
@@ -129,5 +140,4 @@ template <>
 inline ::std::string FromStr<::std::string>(const ::std::string_view sv) {
     return ::std::string{sv};
 }
-} // namespace str
 } // namespace oops

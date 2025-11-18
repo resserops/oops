@@ -4,7 +4,7 @@
 #include <cstring>
 
 namespace oops {
-std::string StrRepeat(const std::string &str, size_t n) {
+std::string Repeat(const std::string &str, size_t n) {
     if (n == 0 || str.empty()) {
         return {};
     }
@@ -16,11 +16,10 @@ std::string StrRepeat(const std::string &str, size_t n) {
     return ret;
 }
 
-std::string StrSplitBack(const std::string &str, const std::string &delim) {
+std::string SplitBack(const std::string &str, const std::string &delim) {
     return str.substr(str.rfind(delim) + delim.size());
 }
 
-namespace str {
 bool StartsWith(std::string_view sv, std::string_view prefix) {
     if (prefix.empty()) {
         return true;
@@ -51,5 +50,4 @@ std::string_view Strip(std::string_view sv, std::string_view chars) {
     }
     return sv.substr(pos, sv.find_last_not_of(chars) - pos + 1);
 }
-} // namespace str
 } // namespace oops

@@ -5,25 +5,21 @@
 #include <string_view>
 
 namespace oops {
-std::string StrRepeat(const std::string &str, size_t n);
-std::string StrSplitBack(const std::string &str, const std::string &delim);
+std::string Repeat(const std::string &str, size_t n);
+std::string SplitBack(const std::string &str, const std::string &delim);
 
 template <typename Iter>
-void StrSplitToIter(const std::string &str, Iter iter);
+void Split(const std::string &str, Iter iter);
 template <typename Iter>
-void StrSplitToIter(const std::string &str, const std::string &delim, Iter iter);
+void Split(const std::string &str, const std::string &delim, Iter iter);
 template <typename Iter>
-void StrSplitToIter(const std::string &str, const std::string &delim, bool skip_empty, Iter iter);
+void Split(const std::string &str, const std::string &delim, bool skip_empty, Iter iter);
 
 template <typename Iter>
-void StrSplitToIterMultiDelim(const std::string &str, const std::string &delims, bool skip_empty, Iter iter);
+void SplitMultiDelim(const std::string &str, const std::string &delims, bool skip_empty, Iter iter);
 template <typename Iter>
-void StrSplitToIterMultiDelim(const std::string &str, const std::string &delims, Iter iter);
+void SplitMultiDelim(const std::string &str, const std::string &delims, Iter iter);
 
-template <typename T>
-std::string ToStr(const T &t);
-
-namespace str {
 constexpr std::string_view SPACE{" \t\n\r\v\f"};
 
 constexpr bool IsUpper(char c) noexcept;
@@ -46,8 +42,9 @@ bool EndsWith(std::string_view sv, std::string_view suffix);
 std::string_view Strip(std::string_view sv, std::string_view chars = SPACE);
 
 template <typename T>
+std::string ToStr(const T &t);
+template <typename T>
 T FromStr(const std::string_view sv);
-} // namespace str
 } // namespace oops
 
-#include "oops/str.tpp"
+#include "oops/str_detail.h"
