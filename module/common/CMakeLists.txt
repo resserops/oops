@@ -22,7 +22,7 @@ if(ENABLE_TEST)
     # 构建测试对象库
     file(GLOB_RECURSE TEST_SRC "test/*.cpp")
     add_library(oops_common_test_o OBJECT ${TEST_SRC})
-    target_link_libraries(oops_common_test_o PRIVATE oops_common_i)
+    target_link_libraries(oops_common_test_o PRIVATE oops_common_i gtest)
 
     # 构建测试程序
     add_executable(oops_common_test)

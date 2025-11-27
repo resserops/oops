@@ -5,4 +5,5 @@ if(ENABLE_TEST)
 endif()
 
 add_subdirectory(common)
+add_subdirectory(matrix)
 add_subdirectory(profiling)
