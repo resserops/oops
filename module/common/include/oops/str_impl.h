@@ -4,19 +4,17 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <string_view>
 
 namespace oops {
 template <typename Iter>
 void Split(const std::string &str, Iter iter) {
-    constexpr const char SPACE[]{" \t\n\r\v\f"};
-    return SplitMultiDelim(str, SPACE, true, iter);
+    return SplitMultiDelim(str, std::string(SPACE), true, iter);
 }
 
 template <typename Iter>
 void Split(const std::string &str, bool skip_empty, Iter iter) {
-    std::cout << "Do" << std::endl;
-    constexpr const char SPACE[]{" \t\n\r\v\f"};
-    return SplitMultiDelim(str, SPACE, skip_empty, iter);
+    return SplitMultiDelim(str, std::string(SPACE), skip_empty, iter);
 }
 
 template <typename Iter>
@@ -68,6 +66,45 @@ void SplitMultiDelim(const std::string &str, const std::string &delims, bool ski
     if (!skip_empty || str.size() > begin) {
         *(iter++) = str.substr(begin);
     }
+}
+
+template <typename Container>
+Container Split(const std::string &str) {
+    return SplitMultiDelim<Container>(str, std::string(SPACE), true);
+}
+
+template <typename Container>
+Container Split(const std::string &str, bool skip_empty) {
+    return SplitMultiDelim<Container>(str, std::string(SPACE), skip_empty);
+}
+
+template <typename Container>
+Container Split(const std::string &str, const char *delim) {
+    return Split<Container>(str, delim, false);
+}
+
+template <typename Container>
+Container Split(const std::string &str, const std::string &delim) {
+    return Split<Container>(str, delim, false);
+}
+
+template <typename Container>
+Container Split(const std::string &str, const std::string &delim, bool skip_empty) {
+    Container container;
+    Split(str, delim, skip_empty, std::back_inserter(container));
+    return container;
+}
+
+template <typename Container>
+Container SplitMultiDelim(const std::string &str, const std::string &delims) {
+    return SplitMultiDelim<Container>(str, delims, false);
+}
+
+template <typename Container>
+Container SplitMultiDelim(const std::string &str, const std::string &delims, bool skip_empty) {
+    Container container;
+    SplitMultiDelim(str, delims, skip_empty, std::back_inserter(container));
+    return container;
 }
 
 constexpr bool IsUpper(char c) noexcept { return 'A' <= c && c <= 'Z'; }
