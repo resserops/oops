@@ -1,6 +1,6 @@
 #include "oops/format.h"
 #include "oops/str.h"
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
 using namespace oops;
 
