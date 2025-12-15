@@ -5,6 +5,7 @@
 #include <functional>
 #include <iomanip>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 #include <stack>
 #include <string>
@@ -147,13 +148,16 @@ struct RecordTable {
     void Append(const Record &log) { records.push_back(log); }
     void Output(std::ostream &out) const;
 
+    std::thread::id thread_id_;
     TimeInterval root_itv;
     TimeInterval entry_itv;
     std::vector<Record> records;
 };
 std::ostream &operator<<(std::ostream &out, const RecordTable &sample);
 
-// 存储所有Trace产生的Record，组织依赖关系
+class ParallelTraceStore;
+
+// 存储Trace产生的Record，组织依赖关系
 class TraceStore {
     class Node {
         friend class TraceStore;
@@ -179,10 +183,9 @@ class TraceStore {
     };
 
 public:
-    static auto &Get() {
-        static TraceStore &stat{GetImpl()};
-        return stat;
-    }
+    TraceStore() = default;
+    TraceStore(ParallelTraceStore *p_store);
+
     void Clear();
 
     void SetLocation(const char *label, const char *file, int line);
@@ -196,8 +199,6 @@ public:
     RecordTable GetRecordTable() const;
 
 private:
-    static TraceStore &GetImpl(); // 避免跨编译单元产生多实例
-
     int GetOrCreateNode(int parent_i, const void *location_id);
     void SetupSameLevelNode(const void *location_id);
 
@@ -206,9 +207,58 @@ private:
     Record GetRecord(const Node &node, size_t depth) const;
     Record GetRecord(const TimeInterval &itv, size_t depth) const;
 
+    std::thread::id thread_id_{std::this_thread::get_id()};
     std::vector<Node> nodes_{Node{nullptr}};
     std::vector<int> node_stack_{0};
     std::stack<TimePoint> scope_stack_; // 维护当前Scope前一个TimePoint，每次Trace，读取并刷新TimePoint
+};
+
+struct ParallelRecordTable {
+    void Output(std::ostream &out) const;
+    std::vector<RecordTable> record_tables;
+};
+std::ostream &operator<<(std::ostream &out, const RecordTable &sample);
+
+// 存储全局Record，每个线程拥有一个TraceStore
+class ParallelTraceStore {
+public:
+    // 获取默认全局实例
+    static auto &Get() {
+        static ParallelTraceStore &stat{GetImpl()};
+        return stat;
+    }
+
+    void Clear() {
+        for (auto &local : local_trace_stores_) {
+            local.Clear();
+        }
+    };
+
+    void SetLocation(const char *label, const char *file, int line) { GetLocalImpl().SetLocation(label, file, line); }
+    void TraceScopeBegin(const void *location_id) { GetLocalImpl().TraceScopeBegin(location_id); }
+    void TraceScopeEnd() { GetLocalImpl().TraceScopeEnd(); }
+
+    void Trace(const void *location_id, size_t mask) { GetLocalImpl().Trace(location_id, mask); }
+    void Trace(const void *location_id, const detail::TraceVaArgs &va_args) {
+        GetLocalImpl().Trace(location_id, va_args);
+    }
+
+    ParallelRecordTable GetRecordTable() const;
+
+private:
+    // TODO(resserops): 由于thread local是全局作用域，当前ParallelTraceStore定义为单例，后续通过local manager支持多实例
+    ParallelTraceStore() = default;
+    static ParallelTraceStore &GetImpl();
+
+    TraceStore &GetLocal() {
+        thread_local TraceStore &stat{GetLocalImpl()};
+        return stat;
+    }
+    TraceStore &GetLocalImpl();
+    TraceStore &CreateLocalTraceStore();
+
+    std::deque<TraceStore> local_trace_stores_;
+    std::mutex mutex_;
 };
 
 class TraceScopeBase {
@@ -222,31 +272,35 @@ class TraceScope : public TraceScopeBase {
 public:
     TraceScope() : is_active_{TraceConfig::Get().GetTraceLevel() <= Level} {
         if (is_active_) {
-            TraceStore::Get().TraceScopeBegin(&(++count_));
+            ++count_;
+            ParallelTraceStore::Get().TraceScopeBegin(&location_);
         }
     }
+
     ~TraceScope() {
         if (is_active_) {
-            TraceStore::Get().TraceScopeEnd();
+            ParallelTraceStore::Get().TraceScopeEnd();
         }
     }
 
     // 做成类成员函数以便在编译器找到部分SCOPE和TRACE不匹配的问题
     template <typename Lambda>
     void Trace(Lambda &&, const char *label, const char *file, int line, size_t mask) {
-        static unsigned char count{0};
+        static unsigned char location{};
+        thread_local unsigned char count{0};
         if (is_active_) {
             TraceImpl<Lambda>(++count, label, file, line);
-            TraceStore::Get().Trace(&count, mask);
+            ParallelTraceStore::Get().Trace(&location, mask);
         }
     }
 
     template <typename Lambda>
     void Trace(Lambda &&, const char *label, const char *file, int line, const detail::TraceVaArgs &va_args) {
-        static unsigned char count{0};
+        static unsigned char location{};
+        thread_local unsigned char count{0};
         if (is_active_) {
             TraceImpl<Lambda>(++count, label, file, line);
-            TraceStore::Get().Trace(&count, va_args);
+            ParallelTraceStore::Get().Trace(&location, va_args);
         }
     }
 
@@ -256,14 +310,15 @@ private:
         if (count != count_) {
             ThrowCountMismatchException(count_, count, label, file, line);
         }
-        static bool location_set{false};
+        thread_local bool location_set{false};
         if (!location_set) {
-            TraceStore::Get().SetLocation(label, file, line);
+            ParallelTraceStore::Get().SetLocation(label, file, line);
             location_set = true;
         }
     }
 
-    static inline unsigned char count_{0};
+    static inline unsigned char location_{};
+    static thread_local inline unsigned char count_{0};
     bool is_active_{};
 };
 

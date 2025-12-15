@@ -53,7 +53,7 @@ TEST(ProfilingTrace, TraceBase) {
         TRACE("step3");
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-    TraceStore::Get().GetRecordTable().Output(std::cout);
+    ParallelTraceStore::Get().GetRecordTable().Output(std::cout);
 }
 
 void Func() {
@@ -63,7 +63,7 @@ void Func() {
 }
 
 TEST(ProfilingTrace, BAD) {
-    TraceStore::Get().Clear();
+    ParallelTraceStore::Get().Clear();
     TRACE_SCOPE(INFO);
     Func();
     for (size_t i = 0; i < 1; ++i) {
@@ -73,11 +73,11 @@ TEST(ProfilingTrace, BAD) {
     }
     Func();
     TRACE("DONE");
-    TraceStore::Get().GetRecordTable().Output(std::cout);
+    ParallelTraceStore::Get().GetRecordTable().Output(std::cout);
 }
 
 TEST(ProfilingTrace, InternalCost) {
-    TraceStore::Get().Clear();
+    ParallelTraceStore::Get().Clear();
     constexpr size_t LOOP_N{10};
     TRACE_SCOPE(INFO);
     for (size_t i{0}; i < LOOP_N; ++i) {
@@ -86,11 +86,11 @@ TEST(ProfilingTrace, InternalCost) {
         TRACE("step1");
         TRACE("step2");
     }
-    TraceStore::Get().GetRecordTable().Output(std::cout);
+    ParallelTraceStore::Get().GetRecordTable().Output(std::cout);
 }
 
 TEST(ProfilingTrace, Bad) {
-    TraceStore::Get().Clear();
+    ParallelTraceStore::Get().Clear();
     TRACE_SCOPE(INFO);
     for (size_t i = 0; i < 2; ++i) {
         try {
@@ -104,7 +104,7 @@ TEST(ProfilingTrace, Bad) {
 }
 
 TEST(ProfilingTrace, Bad2) {
-    TraceStore::Get().Clear();
+    ParallelTraceStore::Get().Clear();
     for (size_t i = 0; i < 10; ++i) {
         TRACE_SCOPE(INFO);
         if (i % 2 == 0) {
@@ -121,7 +121,7 @@ TEST(ProfilingTrace, Bad2) {
 }
 
 TEST(ProfilingTrace, Bad3) {
-    TraceStore::Get().Clear();
+    ParallelTraceStore::Get().Clear();
     for (size_t i = 0; i < 10; ++i) {
         TRACE_SCOPE(INFO);
         if (i % 2 == 0) {
@@ -137,7 +137,7 @@ TEST(ProfilingTrace, Bad3) {
 }
 
 TEST(ProfilingTrace, TraceBaseDemo) {
-    TraceStore::Get().Clear();
+    ParallelTraceStore::Get().Clear();
     auto funcB = [] {
         TRACE_SCOPE(INFO);
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -154,5 +154,32 @@ TEST(ProfilingTrace, TraceBaseDemo) {
     TRACE("FuncB", MEM);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     TRACE("FuncC", MEM);
-    TraceStore::Get().GetRecordTable().Output(std::cout);
+    ParallelTraceStore::Get().GetRecordTable().Output(std::cout);
+}
+
+TEST(ProfilingTrace, Parallel) {
+    ParallelTraceStore::Get().Clear();
+
+    auto func = [] {
+        TRACE_SCOPE(INFO);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        TRACE("step1");
+        for (int i = 0; i < 100; ++i) {
+            TRACE_SCOPE(INFO);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            TRACE("in_loop");
+        }
+        TRACE("step2");
+    };
+    TRACE_SCOPE(INFO);
+    std::vector<std::thread> threads;
+    for (size_t i{0}; i < 8; ++i) {
+        threads.emplace_back(func);
+    }
+    TRACE("Launched");
+    for (auto &t : threads) {
+        t.join();
+    }
+    TRACE("Joined");
+    ParallelTraceStore::Get().GetRecordTable().Output(std::cout);
 }

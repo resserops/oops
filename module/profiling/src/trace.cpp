@@ -97,8 +97,10 @@ public:
     LocationStore &operator=(LocationStore &&) = delete;
 
     void SetLocation(const void *key, Location &&value) {
-        assert(!Contains(key)); // Location重复设置，两处location对应的prev_node相同，TRACE_SCOPE
-                                // if { TRACE } else { TRACE }场景
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (Contains(key)) { // 多线程可能重复set_location
+            return;
+        }
         locations_.push_back(std::move(value));
         Location &location{locations_.back()};
         assert(location.anonymous_id == -1);
@@ -107,20 +109,19 @@ public:
     }
 
     const Location &GetLocation(const void *key) const {
+        std::lock_guard<std::mutex> lock(mutex_);
         assert(Contains(key));
         return *location_map_.at(key);
     }
 
-    bool Contains(const void *key) const { return location_map_.find(key) != location_map_.end(); }
-
 private:
     LocationStore() = default;
     ~LocationStore() = default;
+    bool Contains(const void *key) const { return location_map_.find(key) != location_map_.end(); }
 
-    std::unordered_map<const void *, Location *>
-        location_map_; // 上个位置的标识void
-                       // *，LOCATION信息绑定，永久存在不可清除，前提条件，每个scope的到代码块执行顺序是固定，串行的
-    std::deque<Location> locations_; // 保证地址稳定，只允许后端插入
+    static inline std::mutex mutex_;
+    std::unordered_map<const void *, Location *> location_map_; // 替换成三方parallel数据结构
+    std::deque<Location> locations_;                            // 保证地址稳定，只允许后端插入
 };
 
 // TraceStore::Node
@@ -144,11 +145,6 @@ Location TraceStore::Node::GetLocation() const {
 bool TraceStore::Node::Empty() const { return count_ == 0; }
 
 // TraceStore
-TraceStore &TraceStore::GetImpl() {
-    static TraceStore instance;
-    return instance;
-}
-
 void TraceStore::Clear() { // Clear完后又执行到执行过的scope，是否会有问题？
     this->~TraceStore();
     new (this) TraceStore{};
@@ -192,9 +188,8 @@ void TraceStore::TraceScopeEnd() {
 void TraceStore::Trace(const void *location_id, size_t mask) {
     // 更新旧节点
     Node &node{nodes_[node_stack_.back()]};
-    assert(LocationStore::Get().Contains(
-        node.location_id_)); // 更新数据的节点对应的location_id没有设置过location，可能是TRACE_SCOPE
-                             // for{ TRACE }场景，外层应该抛异常
+    // 更新数据的节点对应的location_id没有设置过location，可能是TRACE_SCOPE for { TRACE }场景，外层应该抛异常
+    // assert(LocationStore::Get().Contains(node.location_id_));
 
     // 更新时间
     TimePoint time_point{TimePoint::Get()};
@@ -213,7 +208,7 @@ void TraceStore::Trace(const void *location_id, size_t mask) {
 void TraceStore::Trace(const void *location_id, const detail::TraceVaArgs &va_args) {
     // 更新旧节点
     Node &node{nodes_[node_stack_.back()]};
-    assert(LocationStore::Get().Contains(node.location_id_));
+    // assert(LocationStore::Get().Contains(node.location_id_));
 
     // 更新时间
     TimePoint time_point{TimePoint::Get()};
@@ -279,6 +274,7 @@ TimeInterval TraceStore::GetRecordTableImpl(int node_i, size_t depth, RecordTabl
 
 RecordTable TraceStore::GetRecordTable() const {
     RecordTable table;
+    table.thread_id_ = thread_id_;
     table.root_itv = table.entry_itv = GetRootItv();
     for (int node_i : nodes_[0].children_) {
         GetRecordTableImpl(node_i, 0, table);
@@ -292,6 +288,43 @@ TimeInterval TraceStore::GetRootItv() const {
         root_itv += nodes_[node_i].time_inverval_;
     }
     return root_itv;
+}
+
+// ParallelTraceStore
+ParallelTraceStore &ParallelTraceStore::GetImpl() {
+    static ParallelTraceStore instance;
+    return instance;
+}
+
+TraceStore &ParallelTraceStore::GetLocalImpl() {
+    thread_local TraceStore &instance{CreateLocalTraceStore()};
+    return instance;
+}
+
+TraceStore &ParallelTraceStore::CreateLocalTraceStore() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    local_trace_stores_.emplace_back();
+    return local_trace_stores_.back();
+}
+
+void ParallelRecordTable::Output(std::ostream &out) const {
+    for (const auto &local : record_tables) {
+        out << "Thread: " << local.thread_id_ << std::endl;
+        out << local << std::endl;
+    }
+}
+
+std::ostream &operator<<(std::ostream &out, const ParallelRecordTable &parallel_recored_table) {
+    parallel_recored_table.Output(out);
+    return out;
+}
+
+ParallelRecordTable ParallelTraceStore::GetRecordTable() const {
+    ParallelRecordTable parallel_record_table;
+    for (auto local_trace_store : local_trace_stores_) {
+        parallel_record_table.record_tables.push_back(local_trace_store.GetRecordTable());
+    }
+    return parallel_record_table;
 }
 
 void TraceScopeBase::ThrowCountMismatchException(
