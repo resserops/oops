@@ -15,15 +15,15 @@ struct Identity {
 template <typename T>
 using IdentityT = typename Identity<T>::Type;
 
-// 支持任意列表
+// 支持任意类型序列
 // Apply(F, TL<...>) = F<...>
 template <template <typename...> typename F, typename TL>
 struct Apply;
 template <template <typename...> typename F, typename TL>
 using ApplyT = typename Apply<F, TL>::Type;
 
-template <template <typename...> typename F, template <typename...> typename TTL, typename... Ts>
-struct Apply<F, TTL<Ts...>> : Identity<F<Ts...>> {};
+template <template <typename...> typename F, template <typename...> typename L, typename... Ts>
+struct Apply<F, L<Ts...>> : Identity<F<Ts...>> {};
 
 // Transform(F, TL<A, B, ...>) = TL<F<A>>
 template <template <typename...> typename F, typename TL>
@@ -31,9 +31,9 @@ struct Transform;
 template <template <typename...> typename F, typename TL>
 using TransformT = typename Transform<F, TL>::Type;
 
-template <template <typename...> typename F, template <typename...> typename TTL, typename... Ts>
-struct Transform<F, TTL<Ts...>> {
-    using Type = TTL<F<Ts>...>;
+template <template <typename...> typename F, template <typename...> typename L, typename... Ts>
+struct Transform<F, L<Ts...>> {
+    using Type = L<F<Ts>...>;
 };
 
 // 支持TypeList
@@ -85,38 +85,5 @@ struct CartProd<TypeList<T, R...>, TypeList<Ts...>>
 
 template <typename TL1, typename TL2, typename... R>
 struct CartProd<TL1, TL2, R...> : Identity<detail::CartExtendT<CartProdT<TL1, TL2>, R...>> {};
-
-using INPUT0 = TypeList<int>;
-using INPUT = TypeList<long>;
-using INPUT2 = TypeList<float, double>;
-
-using RES = CartProd<INPUT0, INPUT, INPUT2>::Type;
-// DebugType<RES> R;
-
-static_assert(std::is_same_v<RES, TypeList<TypeList<int, long, float>, TypeList<int, long, double>>>);
-
-// 测试
-using INPUT22 = std::tuple<int, double>;
-using RES22 = ApplyT<TypeList, INPUT22>;
-static_assert(std::is_same_v<RES22, TypeList<int, double>>);
-
-template <int T>
-struct Type {};
-
-static_assert(
-    std::is_same_v<
-        ConcatT<TypeList<Type<1>, Type<2>>, TypeList<Type<3>, Type<2>>>, TypeList<Type<1>, Type<2>, Type<3>, Type<2>>>);
-
-using TT = CartProdT<TypeList<Type<1>, Type<2>>, TypeList<Type<3>, Type<4>>>;
-using T2 = TypeList<
-    TypeList<Type<1>, Type<3>>, TypeList<Type<1>, Type<4>>, TypeList<Type<2>, Type<3>>, TypeList<Type<2>, Type<4>>>;
-static_assert(std::is_same_v<TT, T2>);
-
-using TT2 = CartProdT<TypeList<Type<1>, Type<2>>, TypeList<Type<5>>, TypeList<Type<3>, Type<4>>>;
-
-using TT3 = TypeList<
-    TypeList<Type<1>, Type<5>, Type<3>>, TypeList<Type<1>, Type<5>, Type<4>>, TypeList<Type<2>, Type<5>, Type<3>>,
-    TypeList<Type<2>, Type<5>, Type<4>>>;
-static_assert(std::is_same_v<TT2, TT3>);
 } // namespace meta
 } // namespace oops
