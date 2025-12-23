@@ -1,7 +1,7 @@
 # 构建接口库
 add_library(oops_matrix_i INTERFACE)
 target_include_directories(oops_matrix_i INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
-target_link_libraries(oops_matrix_i INTERFACE oops_common_i)
+target_link_libraries(oops_matrix_i INTERFACE oops_common_i oops_meta_i)
 
 # 构建对象库
 file(GLOB_RECURSE SRC "src/*.cpp")

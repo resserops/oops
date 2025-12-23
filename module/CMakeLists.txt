@@ -6,4 +6,5 @@ endif()
 
 add_subdirectory(common)
 add_subdirectory(matrix)
+add_subdirectory(meta)
 add_subdirectory(profiling)
