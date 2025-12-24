@@ -14,7 +14,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_compile_options(-std=c++17 -Werror -Wall -Wextra)
+add_compile_options(-std=c++17 -Werror -Wall -Wextra -O2 -g)
 set(EXECUTABLE_OUTPUT_PATH ${oops_dir}/build/bin)
 
 if(ENABLE_ASAN)
