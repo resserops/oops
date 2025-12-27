@@ -1,4 +1,5 @@
 #include "oops/trace.h"
+#include "unistd.h"
 
 #include "oops/system_info.h"
 
@@ -27,24 +28,37 @@ std::string Location::GetLocationStr() const {
     return std::string{file} + ":" + std::to_string(line);
 }
 
+static uint64_t GetCpuTimePoint() {
+    struct timespec tp;
+    if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &tp) == 0) {
+        return static_cast<uint64_t>(tp.tv_sec * 1000000000ULL) + tp.tv_nsec;
+    }
+    throw std::runtime_error("GetCpuTimePoint error");
+}
+
 TimePoint TimePoint::Get() {
     TimePoint trace_point;
-    trace_point.time_point = std::chrono::high_resolution_clock::now();
+    trace_point.time_point = std::chrono::steady_clock::now();
+    trace_point.cpu_time_point = GetCpuTimePoint();
     return trace_point;
 }
 
 TimeInterval &TimeInterval::operator+=(const TimeInterval &rhs) {
     time += rhs.time;
+    cpu_time += rhs.cpu_time;
     return *this;
 }
 
 TimeInterval TimeInterval::operator-(const TimeInterval &rhs) const {
     TimeInterval itv;
     itv.time = time - rhs.time;
+    itv.cpu_time = cpu_time - rhs.cpu_time;
     return itv;
 }
 
-TimeInterval operator-(const TimePoint &lhs, const TimePoint &rhs) { return {lhs.time_point - rhs.time_point}; }
+TimeInterval operator-(const TimePoint &lhs, const TimePoint &rhs) {
+    return {lhs.time_point - rhs.time_point, lhs.cpu_time_point - rhs.cpu_time_point};
+}
 
 Memory Memory::Get() {
     using namespace proc;
@@ -67,13 +81,16 @@ std::ostream &operator<<(std::ostream &out, const Sample &sample) {
 
 void RecordTable::Output(std::ostream &out) const {
     FTable ftable;
-    ftable.AppendRow("Lable", "Count", "Time (s)", "Time (%)", "RSS (G)", "HWM (G)", "Swap (G)", "Location");
+    ftable.AppendRow(
+        "Lable", "Count", "Time (s)", "Time (%)", "CPUTime (s)", "EFFC", "RSS (G)", "HWM (G)", "Swap (G)", "Location");
     for (const auto &record : records) {
         std::string time_ratio_str{ToStr(FFloatPoint{100 * record.GetTime() / root_itv.GetTime()}) + "%"};
         std::string time_str{ToStr(FFloatPoint{record.GetTime()}.SetPrecision(3))};
+        std::string cpu_time_str{ToStr(FFloatPoint{record.GetCpuTime()}.SetPrecision(3))};
+        std::string effc{ToStr(FFloatPoint{record.GetEffCores()}.SetPrecision(1))};
         ftable.AppendRow(
-            Repeat("  ", record.depth) + record.GetLabelStr(), record.count, time_str, time_ratio_str,
-            record.GetRssGiB(), record.GetHwmGiB(), record.GetSwapGiB(), record.GetLocationStr());
+            Repeat("  ", record.depth) + record.GetLabelStr(), record.count, time_str, time_ratio_str, cpu_time_str,
+            effc, record.GetRssGiB(), record.GetHwmGiB(), record.GetSwapGiB(), record.GetLocationStr());
     }
     out << ftable;
 }
@@ -167,6 +184,11 @@ int TraceStore::GetOrCreateNode(int parent_i, const void *location_id) {
 void TraceStore::SetLocation(const char *label, const char *file, int line) {
     const void *location_id{nodes_[node_stack_.back()].location_id_}; // 同层上个被创建节点的标识符
     LocationStore::Get().SetLocation(location_id, {label, file, line});
+}
+
+TraceStore &TraceStore::GetImpl() {
+    static TraceStore instance;
+    return instance;
 }
 
 void TraceStore::TraceScopeBegin(const void *location_id) {

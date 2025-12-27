@@ -29,6 +29,22 @@
 #define OOPS_TRACE_LEVEL OOPS_TRACE_LEVEL_INFO // 默认等级INFO
 #endif
 
+// 切换并行、串行实现
+#define OOPS_TRACE_PARALLEL 0
+#define OOPS_TRACE_SERIAL   1
+
+#ifndef OOPS_TRACE_EXECUTION
+#define OOPS_TRACE_EXECUTION OOPS_TRACE_PARALLEL
+#endif
+
+#if OOPS_TRACE_EXECUTION == OOPS_TRACE_SERIAL
+#define OOPS_TRACE_STORE ::oops::TraceStore
+#elif OOPS_TRACE_EXECUTION == OOPS_TRACE_PARALLEL
+#define OOPS_TRACE_STORE ::oops::ParallelTraceStore
+#elif
+#error "Unexpected Trace Execution"
+#endif
+
 // 定义TRACE_SCOPE
 #if OOPS_TRACE_LEVEL <= OOPS_TRACE_LEVEL_VERBOSE
 #define OOPS_TRACE_SCOPE_VERBOSE() auto oops_trace_scope__(::oops::MakeTraceScope<OOPS_TRACE_LEVEL_VERBOSE>([] {}))
@@ -111,15 +127,22 @@ struct Location { // 打点位置相关
 
 struct TimePoint {
     static TimePoint Get();
-    std::chrono::high_resolution_clock::time_point time_point{};
+    std::chrono::steady_clock::time_point time_point{};
+    uint64_t cpu_time_point{};
 };
 
 struct TimeInterval {
     TimeInterval &operator+=(const TimeInterval &rhs);
     TimeInterval operator-(const TimeInterval &rhs) const;
     double GetTime() const { return std::chrono::duration<double>(time).count(); }
+    double GetCpuTime() const { return static_cast<double>(cpu_time) / 1e9; }
+    double GetEffCores() const {
+        uint64_t time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(time).count();
+        return static_cast<double>(cpu_time) / time_ns;
+    }
 
-    std::chrono::high_resolution_clock::duration time{};
+    std::chrono::steady_clock::duration time{};
+    uint64_t cpu_time{};
 };
 
 TimeInterval operator-(const TimePoint &lhs, const TimePoint &rhs);
@@ -186,6 +209,11 @@ public:
     TraceStore() = default;
     TraceStore(ParallelTraceStore *p_store);
 
+    // 获取默认全局实例
+    static auto &Get() {
+        static TraceStore &stat{GetImpl()};
+        return stat;
+    }
     void Clear();
 
     void SetLocation(const char *label, const char *file, int line);
@@ -199,6 +227,7 @@ public:
     RecordTable GetRecordTable() const;
 
 private:
+    static TraceStore &GetImpl();
     int GetOrCreateNode(int parent_i, const void *location_id);
     void SetupSameLevelNode(const void *location_id);
 
@@ -273,13 +302,13 @@ public:
     TraceScope() : is_active_{TraceConfig::Get().GetTraceLevel() <= Level} {
         if (is_active_) {
             ++count_;
-            ParallelTraceStore::Get().TraceScopeBegin(&location_);
+            OOPS_TRACE_STORE::Get().TraceScopeBegin(&location_);
         }
     }
 
     ~TraceScope() {
         if (is_active_) {
-            ParallelTraceStore::Get().TraceScopeEnd();
+            OOPS_TRACE_STORE::Get().TraceScopeEnd();
         }
     }
 
@@ -290,7 +319,7 @@ public:
         thread_local unsigned char count{0};
         if (is_active_) {
             TraceImpl<Lambda>(++count, label, file, line);
-            ParallelTraceStore::Get().Trace(&location, mask);
+            OOPS_TRACE_STORE::Get().Trace(&location, mask);
         }
     }
 
@@ -300,7 +329,7 @@ public:
         thread_local unsigned char count{0};
         if (is_active_) {
             TraceImpl<Lambda>(++count, label, file, line);
-            ParallelTraceStore::Get().Trace(&location, va_args);
+            OOPS_TRACE_STORE::Get().Trace(&location, va_args);
         }
     }
 
@@ -312,7 +341,7 @@ private:
         }
         thread_local bool location_set{false};
         if (!location_set) {
-            ParallelTraceStore::Get().SetLocation(label, file, line);
+            OOPS_TRACE_STORE::Get().SetLocation(label, file, line);
             location_set = true;
         }
     }
