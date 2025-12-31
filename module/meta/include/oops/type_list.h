@@ -76,6 +76,12 @@ struct CartProd;
 template <typename... TLs>
 using CartProdT = typename CartProd<TLs...>::Type;
 
+template <>
+struct CartProd<> : Identity<TypeList<>> {};
+
+template <typename... Ts>
+struct CartProd<TypeList<Ts...>> : Identity<TypeList<Ts...>> {};
+
 template <typename... Ts>
 struct CartProd<TypeList<>, TypeList<Ts...>> : Identity<TypeList<>> {};
 
