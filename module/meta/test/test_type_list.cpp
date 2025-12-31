@@ -168,6 +168,18 @@ TEST_STATIC(MetaTypeList, CartProd) {
     static_assert(std::is_same_v<Result, Expected>);
 }
 
+TEST_STATIC(MetaTypeList, CartProdZeroTypeList) {
+    using Result = CartProdT<>;
+    using Expected = TypeList<>;
+    static_assert(std::is_same_v<Result, Expected>);
+}
+
+TEST_STATIC(MetaTypeList, CartProdOneTypeList) {
+    using Result = CartProdT<TypeList<A, B>>;
+    using Expected = TypeList<A, B>;
+    static_assert(std::is_same_v<Result, Expected>);
+}
+
 TEST_STATIC(MetaTypeList, CartProdMultiTypeList) {
     using Result = CartProdT<TypeList<A, B>, TypeList<C, D>, TypeList<E, F>>;
     using Expected = TypeList<
