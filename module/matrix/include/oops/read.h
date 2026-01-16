@@ -8,10 +8,6 @@
 
 using namespace oops::meta;
 namespace oops {
-template <typename TL>
-using ApplyToCoo = ApplyT<Coo, TL>;
-using CooVar = ApplyT<std::variant, TransformT<ApplyToCoo, CartProdT<ValueType, IndexType>>>;
-
 template <typename Value>
 struct CooConstructor {
     template <typename DimIndex>
@@ -22,7 +18,7 @@ struct CooConstructor {
 
 using CooConstructorVar = ApplyT<std::variant, TransformT<CooConstructor, ValueType>>;
 
-CooVar ReadMatrixMarket(std::istream &is) {
+inline CooVar ReadMatrixMarket(std::istream &is) {
     std::string buf;
     if (!std::getline(is, buf)) {
         throw std::runtime_error("Empty istream");
@@ -87,15 +83,15 @@ CooVar ReadMatrixMarket(std::istream &is) {
             store.n = n;
 
             DimIndexType i, j;
-            store.row_idx.reserve(nnz);
-            store.col_idx.reserve(nnz);
+            store.row_indices.reserve(nnz);
+            store.col_indices.reserve(nnz);
             if constexpr (std::is_same_v<ValueType, std::monostate>) {
                 for (std::size_t k{0}; k < nnz; ++k) {
                     if (!(is >> i >> j)) {
                         throw std::runtime_error("Failed to read entry");
                     }
-                    store.row_idx.push_back(i - 1);
-                    store.col_idx.push_back(j - 1);
+                    store.row_indices.push_back(i - 1);
+                    store.col_indices.push_back(j - 1);
                 }
             } else if constexpr (std::is_same_v<ValueType, std::complex<double>>) {
                 double real, imag;
@@ -104,8 +100,8 @@ CooVar ReadMatrixMarket(std::istream &is) {
                     if (!(is >> i >> j >> real >> imag)) {
                         throw std::runtime_error("Failed to read entry");
                     }
-                    store.row_idx.push_back(i - 1);
-                    store.col_idx.push_back(j - 1);
+                    store.row_indices.push_back(i - 1);
+                    store.col_indices.push_back(j - 1);
                     store.values.emplace_back(real, imag);
                 }
             } else {
@@ -115,8 +111,8 @@ CooVar ReadMatrixMarket(std::istream &is) {
                     if (!(is >> i >> j >> v)) {
                         throw std::runtime_error("Failed to read entry");
                     }
-                    store.row_idx.push_back(i - 1);
-                    store.col_idx.push_back(j - 1);
+                    store.row_indices.push_back(i - 1);
+                    store.col_indices.push_back(j - 1);
                     store.values.push_back(v);
                 }
             }

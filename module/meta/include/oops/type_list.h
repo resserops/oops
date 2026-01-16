@@ -15,6 +15,15 @@ struct Identity {
 template <typename T>
 using IdentityT = typename Identity<T>::Type;
 
+// wraps a class template F as a type Quote<F>
+template <template <typename...> typename F>
+struct Quote {
+    template <typename... T>
+    using Fn = F<T...>;
+};
+template <template <typename...> typename F>
+using QuoteF = typename Quote<F>::Fn;
+
 // 支持任意类型序列
 // Apply(F, TL<...>) = F<...>
 template <template <typename...> typename F, typename TL>
