@@ -1,14 +1,16 @@
-#include <thread>
+#include <fstream>
 
-#include "oops/read.h"
+#include "oops/matrix_market_io.h"
 #include "gtest/gtest.h"
 
 using namespace oops;
 
 TEST(Coo, ReadCoo) {
     std::ifstream iss(std::string(CASE_DIR) + "/crs.mtx");
-    CooVar coo = ReadMatrixMarket(iss);
-    std::visit([](const auto &coo) { std::cout << coo.M() << " " << coo.N() << " " << coo.Nnz() << std::endl; }, coo);
+    auto any_coo{ReadMatrixMarket(iss)};
+    EXPECT_EQ(any_coo.M(), 3);
+    EXPECT_EQ(any_coo.N(), 3);
+    EXPECT_EQ(any_coo.Nnz(), 4);
 }
 
 TEST(MatrixCoo, AnyCoo) {
