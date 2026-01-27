@@ -41,6 +41,8 @@ struct MatrixNumericOf<std::complex<float>> : IntegralConstant<MatrixNumeric::CO
 template <>
 struct MatrixNumericOf<std::complex<double>> : IntegralConstant<MatrixNumeric::COMPLEX> {};
 template <>
+struct MatrixNumericOf<int32_t> : IntegralConstant<MatrixNumeric::INTEGER> {};
+template <>
 struct MatrixNumericOf<intmax_t> : IntegralConstant<MatrixNumeric::INTEGER> {};
 template <>
 struct MatrixNumericOf<std::monostate> : IntegralConstant<MatrixNumeric::PATTERN> {};

@@ -5,12 +5,24 @@
 
 using namespace oops;
 
+#ifndef CASE_DIR
+#define CASE_DIR "bad"
+#endif
+
 TEST(Coo, ReadCoo) {
-    std::ifstream iss(std::string(CASE_DIR) + "/crs.mtx");
+    std::ifstream iss(std::string(CASE_DIR) + "/m_coo_real_sym.mtx");
     auto any_coo{ReadMatrixMarket(iss)};
+    EXPECT_EQ(any_coo.GetFormat(), MatrixFormat::SPARSE_COO);
+    EXPECT_EQ(any_coo.GetValueNumeric(), MatrixNumeric::REAL);
+    EXPECT_EQ(any_coo.GetDimIndexNumeric(), MatrixNumeric::INTEGER);
     EXPECT_EQ(any_coo.M(), 3);
     EXPECT_EQ(any_coo.N(), 3);
-    EXPECT_EQ(any_coo.Nnz(), 4);
+    EXPECT_EQ(any_coo.Nnz(), 5);
+    EXPECT_EQ(any_coo.DiagNnz(), 3);
+    EXPECT_EQ(any_coo.StoredNnz(), 4);
+
+    std::ofstream ofs{std::string(CASE_DIR) + "/output.mtx"};
+    WriteMatrixMarket(ofs, any_coo);
 }
 
 TEST(MatrixCoo, AnyCoo) {
