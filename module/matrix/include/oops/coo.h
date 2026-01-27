@@ -71,8 +71,8 @@ public:
     std::size_t N() const { return store_.n; }
     std::size_t Nnz() const { return store_.values.size(); }
     const std::vector<Value> &GetValues() const { return store_.values; }
-    const std::vector<DimIndex> &GetRowIdx() const { return store_.row_indices; }
-    const std::vector<DimIndex> &GetColIdx() const { return store_.col_indices; }
+    const std::vector<DimIndex> &GetRowIndices() const { return store_.row_indices; }
+    const std::vector<DimIndex> &GetColIndices() const { return store_.col_indices; }
 
 private:
     template <typename RhsValue, typename RhsDimIndex>
@@ -95,7 +95,7 @@ private:
 
 template <typename TL>
 using ApplyToCoo = meta::ApplyT<Coo, TL>;
-using CooVar = meta::ApplyT<std::variant, meta::TransformT<ApplyToCoo, meta::CartProdT<ValueType, IndexType>>>;
+using CooVar = meta::ApplyT<std::variant, meta::TransformT<ApplyToCoo, meta::CartProdT<ValueTypeList, IndexTypeList>>>;
 
 class AnyCoo {
 public:

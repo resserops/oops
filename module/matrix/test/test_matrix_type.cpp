@@ -1,6 +1,6 @@
 #include <thread>
 
-#include "oops/read.h"
+#include "oops/matrix_type.h"
 #include "gtest/gtest.h"
 
 using namespace oops;

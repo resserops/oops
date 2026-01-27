@@ -5,6 +5,7 @@
 #include <iostream>
 #include <type_traits>
 #include <variant>
+#include <vector>
 
 #include <cxxabi.h>
 
@@ -25,6 +26,7 @@ enum class MatrixSymmetric : uint8_t {
 template <auto V>
 using IntegralConstant = std::integral_constant<decltype(V), V>;
 
+// MatrixNumericOf
 template <typename T>
 struct MatrixNumericOf : IntegralConstant<MatrixNumeric::OTHER> {};
 template <typename T>
@@ -43,8 +45,25 @@ struct MatrixNumericOf<intmax_t> : IntegralConstant<MatrixNumeric::INTEGER> {};
 template <>
 struct MatrixNumericOf<std::monostate> : IntegralConstant<MatrixNumeric::PATTERN> {};
 
-using IndexType = meta::TypeList<int32_t, int64_t>;
-using ValueType = meta::TypeList<float, double, std::complex<double>, intmax_t, std::monostate>;
+// IsComplex
+template <typename T>
+struct IsComplex : std::false_type {};
+template <typename T>
+constexpr bool IS_COMPLEX{IsComplex<T>::value};
+
+template <typename T>
+struct IsComplex<std::complex<T>> : std::true_type {};
+
+template <typename T>
+struct Debug;
+
+// Index and value type list
+using ValueTypeList =
+    meta::TypeList<float, double, std::complex<float>, std::complex<double>, intmax_t, std::monostate>;
+using IndexTypeList = meta::TypeList<int32_t, int64_t>;
+
+using ValueTypeVar = meta::ApplyT<std::variant, meta::TransformT<meta::Identity, ValueTypeList>>;
+using IndexTypeVar = meta::ApplyT<std::variant, meta::TransformT<meta::Identity, IndexTypeList>>;
 
 // Type conversion
 // 小类型传参优化，现代编译期会自动识别，引入额外复杂性，暂不使用
