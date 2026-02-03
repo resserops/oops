@@ -1,43 +1,43 @@
-#include <fstream>
-
-#include "oops/matrix_market_io.h"
+#include "oops/coo.h"
 #include "gtest/gtest.h"
 
 using namespace oops;
 
-#ifndef CASE_DIR
-#define CASE_DIR "bad"
-#endif
+// [2.3 7.8  .   .  1.5]
+// [ .   .   .   .   . ]
+// [4.6  .  3.9  .  8.2]
+// [ .   .   .   .   . ]
+// [5.1  .   .   .  6.7]
+TEST(Coo, GeneralSquare) {
+    CooStore<double, int32_t> store;
+    store.m = 5;
+    store.n = 5;
+    store.values = {2.3, 7.8, 1.5, 4.6, 3.9, 8.2, 5.1, 6.7};
+    store.row_indices = {0, 0, 0, 2, 2, 2, 4, 4};
+    store.col_indices = {0, 1, 4, 0, 2, 4, 0, 4};
 
-TEST(Coo, ReadCoo) {
-    std::ifstream iss(std::string(CASE_DIR) + "/m_coo_real_sym.mtx");
-    auto any_coo{ReadMatrixMarket(iss)};
-    EXPECT_EQ(any_coo.GetFormat(), MatrixFormat::SPARSE_COO);
-    EXPECT_EQ(any_coo.GetValueNumeric(), MatrixNumeric::REAL);
-    EXPECT_EQ(any_coo.GetDimIndexNumeric(), MatrixNumeric::INTEGER);
-    EXPECT_EQ(any_coo.M(), 3);
-    EXPECT_EQ(any_coo.N(), 3);
-    EXPECT_EQ(any_coo.Nnz(), 5);
-    EXPECT_EQ(any_coo.DiagNnz(), 3);
-    EXPECT_EQ(any_coo.StoredNnz(), 4);
+    auto check = [&store](const auto &coo) {
+        EXPECT_EQ(coo.GetFormat(), MatrixFormat::SPARSE_COO);
+        EXPECT_EQ(coo.GetValueNumeric(), MatrixNumeric::REAL);
+        EXPECT_EQ(coo.GetDimIndexNumeric(), MatrixNumeric::INTEGER);
+        EXPECT_EQ(coo.GetSymmetric(), MatrixSymmetric::GENERAL);
 
-    std::ofstream ofs{std::string(CASE_DIR) + "/output.mtx"};
-    WriteMatrixMarket(ofs, any_coo);
-}
+        EXPECT_EQ(coo.M(), 5);
+        EXPECT_EQ(coo.N(), 5);
+        EXPECT_EQ(coo.StoredNnz(), 8);
+        EXPECT_EQ(coo.DiagNnz(), 3);
+        EXPECT_EQ(coo.Nnz(), 8);
 
-TEST(MatrixCoo, AnyCoo) {
-    CooStore<double, int32_t> coo_store;
-    coo_store.m = 3;
-    coo_store.n = 3;
-    coo_store.row_indices = {0, 0, 1, 1, 2, 2, 2};
-    coo_store.col_indices = {0, 2, 1, 2, 0, 1, 2};
-    coo_store.values = {28.4, 7.15, 10.9, 63.2, 7.15, 63.2, 45.7};
+        EXPECT_EQ(coo.GetValues(), store.values);
+        EXPECT_EQ(coo.GetRowIndices(), store.row_indices);
+        EXPECT_EQ(coo.GetColIndices(), store.col_indices);
+    };
 
-    Coo<double, int32_t> coo{coo_store};
-    AnyCoo any_coo{coo};
-    EXPECT_EQ(any_coo.M(), 3);
-    EXPECT_EQ(any_coo.N(), 3);
-    EXPECT_EQ(any_coo.Nnz(), 7);
-
-    any_coo.ConvertInplace<float, int32_t>();
+    Coo<double, int32_t> coo{store};
+    check(coo);
+    Coo<double, int32_t> copy_constructed{coo};
+    check(copy_constructed);
+    Coo<double, int32_t> assigned;
+    assigned = coo;
+    check(assigned);
 }

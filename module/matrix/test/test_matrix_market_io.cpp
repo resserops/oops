@@ -1,0 +1,43 @@
+#include <filesystem>
+#include <fstream>
+
+#include "oops/matrix_market_io.h"
+#include "gtest/gtest.h"
+
+using namespace oops;
+namespace fs = std::filesystem;
+
+inline const fs::path CASE_DIR{OOPS_CASE_DIR};
+
+TEST(Coo, ReadCoo) {
+    std::ifstream iss(CASE_DIR / "m_coo_real_sym.mtx");
+    auto any_coo{ReadMatrixMarket(iss)};
+    EXPECT_EQ(any_coo.GetFormat(), MatrixFormat::SPARSE_COO);
+    EXPECT_EQ(any_coo.GetValueNumeric(), MatrixNumeric::REAL);
+    EXPECT_EQ(any_coo.GetDimIndexNumeric(), MatrixNumeric::INTEGER);
+    EXPECT_EQ(any_coo.M(), 3);
+    EXPECT_EQ(any_coo.N(), 3);
+    EXPECT_EQ(any_coo.Nnz(), 5);
+    EXPECT_EQ(any_coo.DiagNnz(), 3);
+    EXPECT_EQ(any_coo.StoredNnz(), 4);
+
+    std::ofstream ofs{CASE_DIR / "/output.mtx"};
+    WriteMatrixMarket(ofs, any_coo);
+}
+
+TEST(MatrixCoo, AnyCoo) {
+    CooStore<double, int32_t> coo_store;
+    coo_store.m = 3;
+    coo_store.n = 3;
+    coo_store.row_indices = {0, 0, 1, 1, 2, 2, 2};
+    coo_store.col_indices = {0, 2, 1, 2, 0, 1, 2};
+    coo_store.values = {28.4, 7.15, 10.9, 63.2, 7.15, 63.2, 45.7};
+
+    Coo<double, int32_t> coo{coo_store};
+    AnyCoo any_coo{coo};
+    EXPECT_EQ(any_coo.M(), 3);
+    EXPECT_EQ(any_coo.N(), 3);
+    EXPECT_EQ(any_coo.Nnz(), 7);
+
+    any_coo.ConvertInplace<float, int32_t>();
+}
