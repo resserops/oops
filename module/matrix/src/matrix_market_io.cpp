@@ -87,7 +87,7 @@ AnyCoo ReadMatrixMarket(std::istream &is) {
     if (tokens[4] == "general") {
         symmetric = MatrixSymmetric::GENERAL;
     } else if (tokens[4] == "symmetric") {
-        symmetric = MatrixSymmetric::SYMMETRIC_LOWWER;
+        symmetric = MatrixSymmetric::SYMMETRIC_LOWER;
     } else if (tokens[4] == "hermitian") {
         if (!std::holds_alternative<meta::Identity<std::complex<double>>>(value_var)) {
             throw std::runtime_error("hermitian without complex");
@@ -147,7 +147,7 @@ static auto WriteMatrixMarketImpl(std::ostream &os, const Coo<Value, DimIndex> &
     MatrixSymmetric symmectric{coo.GetSymmetric()};
     if (symmectric == MatrixSymmetric::GENERAL) {
         os << "general\n";
-    } else if (symmectric == MatrixSymmetric::SYMMETRIC_LOWWER) {
+    } else if (symmectric == MatrixSymmetric::SYMMETRIC_LOWER) {
         os << "symmetric\n";
     } else if (symmectric == MatrixSymmetric::HERMITIAN_LOWER) {
         os << "hermitian\n";
