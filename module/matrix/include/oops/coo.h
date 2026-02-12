@@ -10,8 +10,11 @@ namespace oops {
 // 数据存储类
 template <typename Value, typename DimIndex>
 struct CooStore {
+    static_assert(std::is_integral_v<DimIndex>);
+
     using ValueType = Value;
     using DimIndexType = DimIndex;
+
     std::size_t m;
     std::size_t n;
     std::vector<Value> values;
@@ -22,10 +25,9 @@ struct CooStore {
 template <typename Value, typename DimIndex>
 class Coo {
 public:
-    template <typename RhsValue, typename RhsDimIndex>
+    template <typename OtherValue, typename OtherDimIndex>
     friend class Coo;
 
-    static_assert(std::is_integral_v<DimIndex>);
     using StoreType = CooStore<Value, DimIndex>;
     using ValueType = typename StoreType::ValueType;
     using DimIndexType = typename StoreType::DimIndexType;
@@ -42,22 +44,23 @@ public:
     Coo(const Coo &) = default;
     Coo(Coo &&) noexcept = default;
 
-    template <typename RhsValue, typename RhsDimIndex>
-    Coo(const Coo<RhsValue, RhsDimIndex> &rhs) : store_{ConvertStore(rhs.store_)}, symmetric_{rhs.symmetric_} {}
-    template <typename RhsValue, typename RhsDimIndex>
-    Coo(Coo<RhsValue, RhsDimIndex> &&rhs) : store_{ConvertStore(std::move(rhs.store_))}, symmetric_{rhs.symmetric_} {}
+    template <typename OtherValue, typename OtherDimIndex>
+    Coo(const Coo<OtherValue, OtherDimIndex> &rhs) : store_{ConvertStore(rhs.store_)}, symmetric_{rhs.symmetric_} {}
+    template <typename OtherValue, typename OtherDimIndex>
+    Coo(Coo<OtherValue, OtherDimIndex> &&rhs)
+        : store_{ConvertStore(std::move(rhs.store_))}, symmetric_{rhs.symmetric_} {}
 
     Coo &operator=(const Coo &) = default;
     Coo &operator=(Coo &&) noexcept = default;
 
-    template <typename RhsValue, typename RhsDimIndex>
-    Coo &operator=(const Coo<RhsValue, RhsDimIndex> &rhs) {
+    template <typename OtherValue, typename OtherDimIndex>
+    Coo &operator=(const Coo<OtherValue, OtherDimIndex> &rhs) {
         store_ = ConvertStore(rhs.store_);
         symmetric_ = rhs.symmetric_;
         return *this;
     }
-    template <typename RhsValue, typename RhsDimIndex>
-    Coo &operator=(Coo<RhsValue, RhsDimIndex> &&rhs) {
+    template <typename OtherValue, typename OtherDimIndex>
+    Coo &operator=(Coo<OtherValue, OtherDimIndex> &&rhs) {
         store_ = ConvertStore(std::move(rhs.store_));
         symmetric_ = rhs.symmetric_;
         return *this;
@@ -70,7 +73,8 @@ public:
 
     std::size_t M() const { return store_.m; }
     std::size_t N() const { return store_.n; }
-    std::size_t StoredNnz() const { return store_.values.size(); }
+    // 不应使用values，特殊情况partten矩阵不存储values
+    std::size_t StoredNnz() const { return store_.row_indices.size(); }
 
     std::size_t DiagNnz() const {
         if (!diag_nnz_) {
@@ -92,15 +96,15 @@ public:
     const StoreType &GetStore() const { return store_; }
 
 private:
-    template <typename RhsValue, typename RhsDimIndex>
-    static CooStore<Value, DimIndex> ConvertStore(const CooStore<RhsValue, RhsDimIndex> &rhs) {
+    template <typename OtherValue, typename OtherDimIndex>
+    static CooStore<Value, DimIndex> ConvertStore(const CooStore<OtherValue, OtherDimIndex> &rhs) {
         return {
             rhs.m, rhs.n, ConvertVector<Value>(rhs.values), ConvertVector<DimIndex>(rhs.row_indices),
             ConvertVector<DimIndex>(rhs.col_indices)};
     }
 
-    template <typename RhsValue, typename RhsDimIndex>
-    static CooStore<Value, DimIndex> ConvertStore(CooStore<RhsValue, RhsDimIndex> &&rhs) {
+    template <typename OtherValue, typename OtherDimIndex>
+    static CooStore<Value, DimIndex> ConvertStore(CooStore<OtherValue, OtherDimIndex> &&rhs) {
         return {
             rhs.m, rhs.n, ConvertVector<Value>(std::move(rhs.values)),
             ConvertVector<DimIndex>(std::move(rhs.row_indices)), ConvertVector<DimIndex>(std::move(rhs.col_indices))};

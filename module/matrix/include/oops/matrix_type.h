@@ -15,7 +15,7 @@ enum class MatrixFormat : uint8_t { SPARSE_COO, SPARSE_CSR, SPARSE_CSC, DENSE_RO
 enum class MatrixNumeric : uint8_t { REAL, COMPLEX, INTEGER, PATTERN, OTHER };
 enum class MatrixSymmetric : uint8_t {
     GENERAL,
-    SYMMETRIC_LOWWER,
+    SYMMETRIC_LOWER,
     SYMMETRIC_UPPER,
     HERMITIAN_LOWER,
     HERMITIAN_UPPER,
