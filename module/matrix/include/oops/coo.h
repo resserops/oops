@@ -23,6 +23,65 @@ struct CooStore {
 };
 
 template <typename Value, typename DimIndex>
+struct Triplet {
+    Value value;
+    DimIndex row_index;
+    DimIndex col_index;
+};
+
+template <typename Value, typename DimIndex>
+class CooIterator {
+public:
+    using StoreTypeBase = CooStore<std::remove_const_t<Value>, DimIndex>;
+    using StoreType = std::conditional_t<std::is_const_v<Value>, const StoreTypeBase, StoreTypeBase>;
+    using TripletProxy = Triplet<Value &, DimIndex>;
+
+    using iterator_category = std::bidirectional_iterator_tag;
+    using difference_type = std::ptrdiff_t;
+    using value_type = TripletProxy;
+    using pointer = value_type *;
+    using reference = value_type &;
+
+    CooIterator() = default;
+    CooIterator(StoreType &store, std::size_t i) : store_{store}, i_{i} {}
+
+    TripletProxy operator*() const { return {store_.values[i_], store_.row_indices[i_], store_.col_indices[i_]}; }
+
+    Value &GetValue() const { return store_.values[i_]; }
+    DimIndex GetRowIndex() const { return store_.row_indices[i_]; }
+    DimIndex GetColIndex() const { return store_.col_indices[i_]; }
+
+    CooIterator &operator++() {
+        ++i_;
+        return *this;
+    }
+
+    CooIterator operator++(int) {
+        CooIterator iter{*this};
+        ++(*this);
+        return iter;
+    }
+
+    CooIterator &operator--() {
+        --i_;
+        return *this;
+    }
+
+    CooIterator operator--(int) {
+        CooIterator iter{*this};
+        --(*this);
+        return iter;
+    }
+
+    bool operator==(const CooIterator &rhs) const { return ((&store_) == (&rhs.store_)) && (i_ == rhs.i_); }
+    bool operator!=(const CooIterator &rhs) const { return !operator==(rhs); }
+
+private:
+    StoreType &store_;
+    std::size_t i_{0};
+};
+
+template <typename Value, typename DimIndex>
 class Coo {
 public:
     template <typename OtherValue, typename OtherDimIndex>
@@ -31,6 +90,9 @@ public:
     using StoreType = CooStore<Value, DimIndex>;
     using ValueType = typename StoreType::ValueType;
     using DimIndexType = typename StoreType::DimIndexType;
+
+    using iterator = CooIterator<Value, DimIndex>;
+    using const_iterator = CooIterator<const Value, DimIndex>;
 
     static constexpr MatrixFormat FORMAT{MatrixFormat::SPARSE_COO};
     static constexpr MatrixNumeric VALUE_NUMERIC{MATRIX_NUMERIC_OF<Value>};
@@ -66,6 +128,33 @@ public:
         return *this;
     }
 
+    iterator begin() { return iterator{store_, 0}; }
+    iterator end() { return iterator{store_, StoredNnz()}; }
+    const_iterator begin() const { return const_iterator{store_, 0}; }
+    const_iterator end() const { return const_iterator{store_, StoredNnz()}; }
+
+    const Value &At(DimIndex row_index, DimIndex col_index) const {
+        for (auto it{begin()}; it != end(); ++it) {
+            if (it.GetRowIndex() == row_index && it.GetColIndex() == col_index) {
+                return it.GetValue();
+            }
+        }
+        std::ostringstream oss;
+        oss << "not found nnz at (" << row_index << ", " << col_index << ")";
+        throw std::out_of_range(oss.str());
+    }
+
+    Value &At(DimIndex row_index, DimIndex col_index) {
+        for (auto it{begin()}; it != end(); ++it) {
+            if (it.GetRowIndex() == row_index && it.GetColIndex() == col_index) {
+                return it.GetValue();
+            }
+        }
+        std::ostringstream oss;
+        oss << "not found nnz at (" << row_index << ", " << col_index << ")";
+        throw std::out_of_range(oss.str());
+    }
+
     static constexpr MatrixFormat GetFormat() { return FORMAT; }
     static constexpr MatrixNumeric GetValueNumeric() { return VALUE_NUMERIC; }
     static constexpr MatrixNumeric GetDimIndexNumeric() { return DIM_INDEX_NUMERIC; }
@@ -94,6 +183,9 @@ public:
     const std::vector<DimIndex> &GetRowIndices() const { return store_.row_indices; }
     const std::vector<DimIndex> &GetColIndices() const { return store_.col_indices; }
     const StoreType &GetStore() const { return store_; }
+
+    // 提取内部Store所有权
+    StoreType &ExtractStore() { return std::move(store_); }
 
 private:
     template <typename OtherValue, typename OtherDimIndex>
