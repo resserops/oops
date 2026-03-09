@@ -26,6 +26,8 @@ if(ENABLE_ASAN)
     endif()
 endif()
 
+# 引入三方库依赖
+include(${oops_3rd_cmake_dir}/argparse.cmake)
 if(ENABLE_TEST)
     include(${oops_3rd_cmake_dir}/googletest.cmake)
 endif()
