@@ -21,7 +21,13 @@ set_target_properties(oops_profiling_d PROPERTIES OUTPUT_NAME oops_profiling)
 target_link_libraries(oops_profiling_d PRIVATE oops_profiling_o oops_common_d)
 target_link_libraries(oops_profiling_d INTERFACE oops_profiling_i)
 
+# 构建工具
+# add_subdirectory(tool)
+
 if(ENABLE_TEST)
+    # 构建测试负载
+    add_subdirectory(load)
+    
     # 构建测试对象库
     file(GLOB_RECURSE TEST_SRC "test/*.cpp")
     add_library(oops_profiling_test_o OBJECT ${TEST_SRC})
@@ -35,3 +41,5 @@ if(ENABLE_TEST)
     # 构建全量测试程序
     target_link_libraries(oops_test PRIVATE oops_profiling_test_o oops_profiling_s)
 endif()
+
+

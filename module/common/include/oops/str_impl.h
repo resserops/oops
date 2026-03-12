@@ -32,10 +32,11 @@ void Split(const std::string &str, const std::string &delim, bool skip_empty, It
     size_t begin{0}; // 每个分割字串的头部
     while (begin < str.size()) {
         size_t end{str.find(delim, begin)};
-        if (end == str.npos) {
+        if (end == std::string::npos) {
             break;
         }
         if (!skip_empty || end > begin) {
+            // TODO(resserops): 支持基于lexical_cast的转换
             *(iter++) = str.substr(begin, end - begin);
         }
         begin = end + delim.size();
@@ -55,7 +56,7 @@ void SplitMultiDelim(const std::string &str, const std::string &delims, bool ski
     size_t begin{0};
     while (begin < str.size()) {
         size_t end{str.find_first_of(delims, begin)};
-        if (end == str.npos) {
+        if (end == std::string::npos) {
             break;
         }
         if (!skip_empty || end > begin) {

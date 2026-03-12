@@ -45,7 +45,7 @@ std::string_view Strip(std::string_view sv, std::string_view chars) {
         return sv;
     }
     std::size_t pos{sv.find_first_not_of(chars)};
-    if (pos == sv.npos) {
+    if (pos == std::string_view::npos) {
         return {};
     }
     return sv.substr(pos, sv.find_last_not_of(chars) - pos + 1);
