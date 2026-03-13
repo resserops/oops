@@ -8,7 +8,7 @@
 #include <unistd.h>
 
 namespace oops {
-auto GetTicksPerSec() {
+inline auto GetTicksPerSec() {
     // 每秒时钟滴答数，系统启动后固定
     static const auto TICKS_PER_SEC{sysconf(_SC_CLK_TCK)};
     return TICKS_PER_SEC;
