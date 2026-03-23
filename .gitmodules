@@ -7,3 +7,6 @@
 [submodule "third_party/fmt"]
 	path = third_party/fmt
 	url = https://github.com/fmtlib/fmt.git
+[submodule "third_party/scnlib"]
+	path = third_party/scnlib
+	url = https://github.com/eliaskosunen/scnlib.git
