@@ -39,8 +39,8 @@ public:
     using iterator_category = std::bidirectional_iterator_tag;
     using difference_type = std::ptrdiff_t;
     using value_type = TripletProxy;
-    using pointer = value_type *;
-    using reference = value_type &;
+    using pointer = TripletProxy *;
+    using reference = TripletProxy &;
 
     CooIterator() = default;
     CooIterator(StoreType &store, std::size_t i) : store_{store}, i_{i} {}

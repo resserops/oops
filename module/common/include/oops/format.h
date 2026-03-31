@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <iomanip>
 #include <sstream>
 #include <string>
@@ -12,18 +13,18 @@ namespace oops {
 template <typename F>
 class FFloatPoint {
     static_assert(::std::is_floating_point_v<F>);
-    enum Format : uint8_t { FIXED, SCI };
+    enum Format : std::uint8_t { FIXED, SCI };
 
 public:
     explicit FFloatPoint(F f) : f_{f} {}
     FFloatPoint &Sci();
     FFloatPoint &Fixed();
-    FFloatPoint &SetPrecision(uint8_t precision);
-    void Output(::std::ostream &out) const;
+    FFloatPoint &SetPrecision(std::uint8_t precision);
+    void Output(std::ostream &out) const;
 
 private:
     Format format_{FIXED};
-    uint8_t precision_{2};
+    std::uint8_t precision_{2};
     F f_;
 };
 
@@ -32,18 +33,18 @@ using FDouble = FFloatPoint<double>;
 
 class FTable {
 public:
-    enum Align : uint8_t { LEFT, CENTER, RIGHT };
+    enum Align : std::uint8_t { LEFT, CENTER, RIGHT };
 
     struct Prop {
         Align align{LEFT};
-        size_t left_margin{0};
-        size_t right_margin{0};
-        size_t min_width{0};
+        std::size_t left_margin{0};
+        std::size_t right_margin{0};
+        std::size_t min_width{0};
     };
 
     FTable &SetDelim(const ::std::string &delim);
     FTable &SetProp(const Prop &prop);
-    FTable &SetProp(size_t j, const Prop &prop);
+    FTable &SetProp(std::size_t j, const Prop &prop);
 
     template <typename... Args>
     FTable &AppendRow(const Args &...args) {
@@ -63,7 +64,7 @@ public:
     void Output(::std::ostream &out) const;
 
 private:
-    const Prop &GetProp(size_t j) const;
+    const Prop &GetProp(std::size_t j) const;
 
     ::std::string delim_{" "};
     ::std::vector<::std::vector<::std::string>> table_{{}};

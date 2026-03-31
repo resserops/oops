@@ -24,11 +24,11 @@
 
 namespace oops {
 namespace detail {
-template <size_t N>
+template <std::size_t N>
 struct Only {
     template <typename Lambda>
     static bool F(Lambda &&) {
-        static size_t count{0};
+        static std::size_t count{0};
         if (count < N) {
             ++count;
             return true;
@@ -58,12 +58,12 @@ struct Only<0> {
     }
 };
 
-template <size_t N>
+template <std::size_t N>
 struct Every {
     static_assert(N > 0);
     template <typename Lambda>
     static bool F(Lambda &&) {
-        static size_t count{0};
+        static std::size_t count{0};
         if (count >= N) {
             count = 0;
         }

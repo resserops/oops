@@ -23,7 +23,7 @@
 namespace oops {
 // 获取命令输出
 std::string GetCmdOutput(const std::string &cmd) {
-    std::unique_ptr<FILE, decltype(&pclose)> p{popen(cmd.c_str(), "r"), &pclose};
+    std::unique_ptr<FILE, int (*)(FILE *)> p{popen(cmd.c_str(), "r"), &pclose};
     std::string output;
     if (!p) {
         return output;
@@ -162,7 +162,7 @@ void OutputPairedInfo(
 
 namespace proc {
 namespace status {
-using MemberPtrVar = std::variant<std::optional<size_t> Info::*>; // 定义所有类型的成员变量指针
+using MemberPtrVar = std::variant<std::optional<std::size_t> Info::*>; // 定义所有类型的成员变量指针
 constexpr auto PARSE{oops::Parse<Info, MemberPtrVar>};
 constexpr auto FORMAT{oops::Format<Info, MemberPtrVar>};
 
@@ -204,7 +204,7 @@ namespace numa_maps {
 
 namespace lscpu {
 using MemberPtrVar = std::variant<
-    std::optional<size_t> Info::*, std::optional<std::string> Info::*,
+    std::optional<std::size_t> Info::*, std::optional<std::string> Info::*,
     std::optional<double> Info::*>; // 定义所有类型的成员变量指针
 constexpr auto PARSE{oops::Parse<Info, MemberPtrVar>};
 constexpr auto FORMAT{oops::Format<Info, MemberPtrVar>};

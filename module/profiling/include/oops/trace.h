@@ -88,8 +88,8 @@
 
 namespace oops {
 // TARCE mask参数配置
-constexpr size_t MEM = 1;
-constexpr size_t MEM_ONCE = 1ul << 1;
+constexpr std::size_t MEM = 1;
+constexpr std::size_t MEM_ONCE = 1ul << 1;
 
 // 全局配置
 class TraceConfig {
@@ -154,17 +154,17 @@ struct Memory {
     double GetHwmGiB() const { return 1.0 * hwm / 1024 / 1024; }
     double GetSwapGiB() const { return 1.0 * swap / 1024 / 1024; }
 
-    size_t rss{};
-    size_t hwm{};
-    size_t swap{};
+    std::size_t rss{};
+    std::size_t hwm{};
+    std::size_t swap{};
 };
 
 struct Sample : public Location, TimeInterval, Memory {};
 std::ostream &operator<<(std::ostream &out, const Sample &sample);
 
 struct Record : public Sample {
-    size_t count{}; // Node中获取
-    size_t depth{}; // 递归时获取
+    std::size_t count{}; // Node中获取
+    std::size_t depth{}; // 递归时获取
 };
 
 struct RecordTable {
@@ -196,7 +196,7 @@ class TraceStore {
 
     private:
         const void *location_id_{};
-        size_t count_{};
+        std::size_t count_{};
 
         // 统计数据成员
         TimeInterval time_inverval_;
@@ -220,7 +220,7 @@ public:
     void TraceScopeBegin(const void *location_id);
     void TraceScopeEnd();
 
-    void Trace(const void *location_id, size_t mask);
+    void Trace(const void *location_id, std::size_t mask);
     void Trace(const void *location_id, const detail::TraceVaArgs &va_args);
 
     RecordTable GetRecordTable(const char *label) const;
@@ -232,9 +232,9 @@ private:
     void SetupSameLevelNode(const void *location_id);
 
     TimeInterval GetRootItv() const;
-    TimeInterval GetRecordTableImpl(int node_i, size_t depth, RecordTable &record_table) const;
-    Record GetRecord(const Node &node, size_t depth) const;
-    Record GetRecord(const TimeInterval &itv, size_t depth) const;
+    TimeInterval GetRecordTableImpl(int node_i, std::size_t depth, RecordTable &record_table) const;
+    Record GetRecord(const Node &node, std::size_t depth) const;
+    Record GetRecord(const TimeInterval &itv, std::size_t depth) const;
 
     std::thread::id thread_id_{std::this_thread::get_id()};
     std::vector<Node> nodes_{Node{nullptr}};
@@ -267,7 +267,7 @@ public:
     void TraceScopeBegin(const void *location_id) { GetLocalImpl().TraceScopeBegin(location_id); }
     void TraceScopeEnd() { GetLocalImpl().TraceScopeEnd(); }
 
-    void Trace(const void *location_id, size_t mask) { GetLocalImpl().Trace(location_id, mask); }
+    void Trace(const void *location_id, std::size_t mask) { GetLocalImpl().Trace(location_id, mask); }
     void Trace(const void *location_id, const detail::TraceVaArgs &va_args) {
         GetLocalImpl().Trace(location_id, va_args);
     }
@@ -314,7 +314,7 @@ public:
 
     // 做成类成员函数以便在编译器找到部分SCOPE和TRACE不匹配的问题
     template <typename Lambda>
-    void Trace(Lambda &&, const char *label, const char *file, int line, size_t mask) {
+    void Trace(Lambda &&, const char *label, const char *file, int line, std::size_t mask) {
         static unsigned char location{};
         thread_local unsigned char count{0};
         if (is_active_) {

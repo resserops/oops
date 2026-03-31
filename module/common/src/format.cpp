@@ -15,7 +15,7 @@ FFloatPoint<F> &FFloatPoint<F>::Fixed() {
 }
 
 template <typename F>
-FFloatPoint<F> &FFloatPoint<F>::SetPrecision(uint8_t precision) {
+FFloatPoint<F> &FFloatPoint<F>::SetPrecision(std::uint8_t precision) {
     precision_ = precision;
     return *this;
 }
@@ -48,7 +48,7 @@ FTable &FTable::SetProp(const Prop &prop) {
     return *this;
 }
 
-FTable &FTable::SetProp(size_t j, const Prop &prop) {
+FTable &FTable::SetProp(std::size_t j, const Prop &prop) {
     if (j > col_prop_vec_.size()) {
         col_prop_vec_.resize(j + 1);
     }
@@ -57,25 +57,25 @@ FTable &FTable::SetProp(size_t j, const Prop &prop) {
 }
 
 void FTable::Output(std::ostream &out) const {
-    std::vector<size_t> col_width_vec;
-    for (size_t i{0}; i < table_.size() - 1; ++i) {
+    std::vector<std::size_t> col_width_vec;
+    for (std::size_t i{0}; i < table_.size() - 1; ++i) {
         auto &row{table_[i]};
-        for (size_t j{0}; j < row.size(); ++j) {
-            for (size_t n{col_width_vec.size()}; n < j + 1; ++n) {
+        for (std::size_t j{0}; j < row.size(); ++j) {
+            for (std::size_t n{col_width_vec.size()}; n < j + 1; ++n) {
                 const Prop &prop{GetProp(n)};
-                size_t default_width{std::max(prop.left_margin + prop.right_margin, prop.min_width)};
+                std::size_t default_width{std::max(prop.left_margin + prop.right_margin, prop.min_width)};
                 col_width_vec.push_back(default_width);
             }
             const Prop &prop{GetProp(j)};
             col_width_vec[j] = std::max(col_width_vec[j], row[j].size() + prop.left_margin + prop.right_margin);
         }
     }
-    for (size_t i{0}; i < table_.size() - 1; ++i) {
+    for (std::size_t i{0}; i < table_.size() - 1; ++i) {
         auto &row{table_[i]};
-        for (size_t j{0}; j < row.size(); ++j) {
+        for (std::size_t j{0}; j < row.size(); ++j) {
             const Prop &prop{GetProp(j)};
-            size_t space_num{col_width_vec[j] - row[j].size()};
-            size_t left_space_num{0};
+            std::size_t space_num{col_width_vec[j] - row[j].size()};
+            std::size_t left_space_num{0};
             switch (prop.align) {
             case Align::LEFT: {
                 left_space_num = prop.left_margin;
@@ -99,7 +99,7 @@ void FTable::Output(std::ostream &out) const {
     }
 }
 
-const FTable::Prop &FTable::GetProp(size_t j) const {
+const FTable::Prop &FTable::GetProp(std::size_t j) const {
     if (j < col_prop_vec_.size()) {
         return col_prop_vec_[j];
     }
