@@ -12,6 +12,8 @@ constexpr auto CONSTEXPR_VALUE{Value};
 
 #define CEXPR(expr) (CONSTEXPR_VALUE<expr>) // expr must be eval at compile-time
 
+#define TEST_STATIC(suite, case) constexpr void TestStatic_##suite_##case ()
+
 TEST(CommonStr, IsUpper) {
     using namespace oops;
     EXPECT_TRUE(CEXPR(IsUpper('A')));
@@ -218,25 +220,25 @@ TEST(CommonStr, SplitBack) {
 
 TEST(CommonStr, Split) {
     using namespace oops;
-    std::vector<std::string> res;
+    std::vector<std::string_view> res;
     Split("abc defg hi", std::back_inserter(res));
-    EXPECT_EQ(res, (std::vector<std::string>{"abc", "defg", "hi"}));
+    EXPECT_EQ(res, (std::vector<std::string_view>{"abc", "defg", "hi"}));
 
     res.clear();
     EXPECT_TRUE(res.empty());
     Split(" abc   defg hi  ", std::back_inserter(res));
-    EXPECT_EQ(res, (std::vector<std::string>{"abc", "defg", "hi"}));
+    EXPECT_EQ(res, (std::vector<std::string_view>{"abc", "defg", "hi"}));
 
     res.clear();
     Split("\nabc \t defg\fhi  ", std::back_inserter(res));
-    EXPECT_EQ(res, (std::vector<std::string>{"abc", "defg", "hi"}));
+    EXPECT_EQ(res, (std::vector<std::string_view>{"abc", "defg", "hi"}));
 }
 
 TEST(CommonStr, SplitDelim) {
     using namespace oops;
-    std::vector<std::string> res;
+    std::vector<std::string_view> res;
     Split("abc:defg:hi", ":", std::back_inserter(res));
-    EXPECT_EQ(res, (std::vector<std::string>{"abc", "defg", "hi"}));
+    EXPECT_EQ(res, (std::vector<std::string_view>{"abc", "defg", "hi"}));
 }
 
 TEST(CommonStr, StartsWith) {
