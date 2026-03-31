@@ -53,21 +53,21 @@ AnyCoo ReadMatrixMarket(std::istream &is) {
         throw std::runtime_error("bad istream");
     }
 
-    auto tokens{Split<std::vector<std::string>>(buf)};
+    auto tokens{Split<std::vector<std::string_view>>(buf)};
     if (tokens.size() != 5) {
-        throw std::runtime_error("unexpected header tokens number: " + tokens.size());
+        throw std::runtime_error(std::string{"unexpected header tokens number: "} + std::to_string(tokens.size()));
     }
 
     if (tokens[0] != "%%MatrixMarket") {
-        throw std::runtime_error("unexpected header identifier: " + tokens[0]);
+        throw std::runtime_error(std::string{"unexpected header identifier: "} += tokens[0]);
     }
 
     if (tokens[1] != "matrix") {
-        throw std::runtime_error("unexpected object: " + tokens[1]);
+        throw std::runtime_error(std::string{"unexpected object: "} += tokens[1]);
     }
 
     if (tokens[2] != "coordinate" && tokens[2] != "sparse") {
-        throw std::runtime_error("unexpected format: " + tokens[2]);
+        throw std::runtime_error(std::string{"unexpected format: "} += tokens[2]);
     }
 
     ValueTypeVar value_var;
@@ -80,7 +80,7 @@ AnyCoo ReadMatrixMarket(std::istream &is) {
     } else if (tokens[3] == "patten") {
         value_var = meta::Identity<std::monostate>{};
     } else {
-        throw std::runtime_error("unexpected value numeric: " + tokens[3]);
+        throw std::runtime_error(std::string{"unexpected value numeric: "} += tokens[3]);
     }
 
     MatrixSymmetric symmetric;
@@ -96,7 +96,7 @@ AnyCoo ReadMatrixMarket(std::istream &is) {
     } else if (tokens[4] == "skew") {
         symmetric = MatrixSymmetric::SKEW_LOWER;
     } else {
-        throw std::runtime_error("unexpected symmetric: " + tokens[4]);
+        throw std::runtime_error(std::string{"unexpected symmetric: "} += tokens[4]);
     }
 
     // skip comments
