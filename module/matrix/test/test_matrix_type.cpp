@@ -39,10 +39,10 @@ struct A {
         other_moved = 0;
     }
 
-    inline static size_t self_copied{};
-    inline static size_t self_moved{};
-    inline static size_t other_copied{};
-    inline static size_t other_moved{};
+    inline static std::size_t self_copied{};
+    inline static std::size_t self_moved{};
+    inline static std::size_t other_copied{};
+    inline static std::size_t other_moved{};
 };
 } // namespace
 

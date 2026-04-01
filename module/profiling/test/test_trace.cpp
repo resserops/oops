@@ -29,12 +29,12 @@ void cpu_burn_us(uint64_t us) {
 }
 
 TEST(ProfilingTrace, TraceBase) {
-    constexpr size_t LOOP_N{10};
+    constexpr std::size_t LOOP_N{10};
     {
         TRACE_SCOPE(INFO);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         TRACE("step1");
-        for (size_t i{0}; i < LOOP_N; ++i) {
+        for (std::size_t i{0}; i < LOOP_N; ++i) {
             TRACE_SCOPE(VERBOSE);
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             TRACE("step2_1");
@@ -42,7 +42,7 @@ TEST(ProfilingTrace, TraceBase) {
             TRACE("step2_2");
         }
         TRACE("step2");
-        for (size_t i{0}; i < LOOP_N; ++i) {
+        for (std::size_t i{0}; i < LOOP_N; ++i) {
             TRACE_SCOPE(INFO);
 
             if (i % 3 == 0) {
@@ -74,7 +74,7 @@ TEST(ProfilingTrace, BAD) {
     OOPS_TRACE_STORE::Get().Clear();
     TRACE_SCOPE(INFO);
     Func();
-    for (size_t i = 0; i < 1; ++i) {
+    for (std::size_t i = 0; i < 1; ++i) {
         TRACE_SCOPE(INFO);
         Func();
         TRACE("FOR_DONE");
@@ -86,9 +86,9 @@ TEST(ProfilingTrace, BAD) {
 
 TEST(ProfilingTrace, InternalCost) {
     OOPS_TRACE_STORE::Get().Clear();
-    constexpr size_t LOOP_N{10};
+    constexpr std::size_t LOOP_N{10};
     TRACE_SCOPE(INFO);
-    for (size_t i{0}; i < LOOP_N; ++i) {
+    for (std::size_t i{0}; i < LOOP_N; ++i) {
         TRACE_SCOPE(INFO);
         cpu_burn_us(100);
         TRACE("step1");
@@ -100,7 +100,7 @@ TEST(ProfilingTrace, InternalCost) {
 TEST(ProfilingTrace, Bad) {
     OOPS_TRACE_STORE::Get().Clear();
     TRACE_SCOPE(INFO);
-    for (size_t i = 0; i < 2; ++i) {
+    for (std::size_t i = 0; i < 2; ++i) {
         try {
             TRACE("step1");
         } catch (...) {
@@ -113,7 +113,7 @@ TEST(ProfilingTrace, Bad) {
 
 TEST(ProfilingTrace, Bad2) {
     OOPS_TRACE_STORE::Get().Clear();
-    for (size_t i = 0; i < 10; ++i) {
+    for (std::size_t i = 0; i < 10; ++i) {
         TRACE_SCOPE(INFO);
         if (i % 2 == 0) {
             TRACE("step_n0");
@@ -130,7 +130,7 @@ TEST(ProfilingTrace, Bad2) {
 
 TEST(ProfilingTrace, Bad3) {
     OOPS_TRACE_STORE::Get().Clear();
-    for (size_t i = 0; i < 10; ++i) {
+    for (std::size_t i = 0; i < 10; ++i) {
         TRACE_SCOPE(INFO);
         if (i % 2 == 0) {
             try {
@@ -181,7 +181,7 @@ TEST(ProfilingTrace, Parallel) {
     };
     TRACE_SCOPE(INFO);
     std::vector<std::thread> threads;
-    for (size_t i{0}; i < 8; ++i) {
+    for (std::size_t i{0}; i < 8; ++i) {
         threads.emplace_back(func);
     }
     TRACE("Launched");
@@ -208,7 +208,7 @@ TEST(ProfilingTrace, ParallelBusy) {
     };
     TRACE_SCOPE(INFO);
     std::vector<std::thread> threads;
-    for (size_t i{0}; i < 8; ++i) {
+    for (std::size_t i{0}; i < 8; ++i) {
         threads.emplace_back(func);
     }
     TRACE("Launched");
@@ -234,14 +234,14 @@ TEST(ProfilingTrace, TraceCost) {
     tp_time.emplace_back();
     cpu_time.emplace_back();
     auto t1 = std::chrono::steady_clock::now();
-    for (size_t i = 0; i < 10000; ++i) {
+    for (std::size_t i = 0; i < 10000; ++i) {
         tp_time.back() = std::chrono::steady_clock::now();
         cpu_time.back() = GetCpuTimePoint();
         tp_time.back() = std::chrono::steady_clock::now();
         cpu_time.back() = GetCpuTimePoint();
     }
     auto t2 = std::chrono::steady_clock::now();
-    for (size_t i = 0; i < 10000; ++i) {
+    for (std::size_t i = 0; i < 10000; ++i) {
         TRACE_SCOPE(INFO);
         TRACE("LOOP");
     }

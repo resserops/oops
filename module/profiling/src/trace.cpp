@@ -175,7 +175,7 @@ int TraceStore::GetOrCreateNode(int parent_i, const void *location_id) {
             return node_i;
         }
     }
-    size_t node_i{nodes_.size()};
+    std::size_t node_i{nodes_.size()};
     nodes_.emplace_back(location_id);
     nodes_[parent_i].children_.push_back(node_i); // vector::emplace_back后，parent引用可能失效
     return node_i;
@@ -207,7 +207,7 @@ void TraceStore::TraceScopeEnd() {
     node_stack_.pop_back();
 }
 
-void TraceStore::Trace(const void *location_id, size_t mask) {
+void TraceStore::Trace(const void *location_id, std::size_t mask) {
     // 更新旧节点
     Node &node{nodes_[node_stack_.back()]};
     // 更新数据的节点对应的location_id没有设置过location，可能是TRACE_SCOPE for { TRACE }场景，外层应该抛异常
@@ -257,7 +257,7 @@ void TraceStore::SetupSameLevelNode(const void *location_id) {
     node_stack_.back() = node_i;
 }
 
-Record TraceStore::GetRecord(const Node &node, size_t depth) const {
+Record TraceStore::GetRecord(const Node &node, std::size_t depth) const {
     Record record{GetRecord(node.time_inverval_, depth)};
     static_cast<Memory &>(record) = node.memory_;
     static_cast<Location &>(record) = node.GetLocation();
@@ -265,7 +265,7 @@ Record TraceStore::GetRecord(const Node &node, size_t depth) const {
     return record;
 }
 
-Record TraceStore::GetRecord(const TimeInterval &itv, size_t depth) const {
+Record TraceStore::GetRecord(const TimeInterval &itv, std::size_t depth) const {
     Record record;
     record.depth = depth;
     record.count = 1;
@@ -275,9 +275,9 @@ Record TraceStore::GetRecord(const TimeInterval &itv, size_t depth) const {
 
 RecordTable TraceStore::GetRecordTable(const char *) const { return GetRecordTable(); }
 
-TimeInterval TraceStore::GetRecordTableImpl(int node_i, size_t depth, RecordTable &record_table) const {
+TimeInterval TraceStore::GetRecordTableImpl(int node_i, std::size_t depth, RecordTable &record_table) const {
     const Node &node{nodes_[node_i]};
-    auto traverse_children = [&](size_t depth) {
+    auto traverse_children = [&](std::size_t depth) {
         TimeInterval child_itv;
         for (int child_i : node.children_) {
             child_itv += GetRecordTableImpl(child_i, depth, record_table);

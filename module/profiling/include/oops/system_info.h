@@ -35,21 +35,21 @@ using oops::operator|; // 支持Field和FieldMask或运算ADL
 
 // 当前只解析内存部分
 struct Info {
-    std::optional<size_t> vm_peak;
-    std::optional<size_t> vm_size;
-    std::optional<size_t> vm_lck;
-    std::optional<size_t> vm_pin;
-    std::optional<size_t> vm_hwm;
-    std::optional<size_t> vm_rss;
-    std::optional<size_t> rss_anon;
-    std::optional<size_t> rss_file;
-    std::optional<size_t> rss_shmem;
-    std::optional<size_t> vm_data;
-    std::optional<size_t> vm_stk;
-    std::optional<size_t> vm_exe;
-    std::optional<size_t> vm_lib;
-    std::optional<size_t> vm_pte;
-    std::optional<size_t> vm_swap;
+    std::optional<std::size_t> vm_peak;
+    std::optional<std::size_t> vm_size;
+    std::optional<std::size_t> vm_lck;
+    std::optional<std::size_t> vm_pin;
+    std::optional<std::size_t> vm_hwm;
+    std::optional<std::size_t> vm_rss;
+    std::optional<std::size_t> rss_anon;
+    std::optional<std::size_t> rss_file;
+    std::optional<std::size_t> rss_shmem;
+    std::optional<std::size_t> vm_data;
+    std::optional<std::size_t> vm_stk;
+    std::optional<std::size_t> vm_exe;
+    std::optional<std::size_t> vm_lib;
+    std::optional<std::size_t> vm_pte;
+    std::optional<std::size_t> vm_swap;
 };
 
 [[nodiscard]] Info Get();
@@ -102,11 +102,11 @@ using oops::operator|; // 支持Field和FieldMask或运算ADL
 
 struct Info {
     std::optional<std::string> architecture;
-    std::optional<size_t> cpus;
-    std::optional<size_t> threads_per_core;
-    std::optional<size_t> cores_per_socket;
-    std::optional<size_t> sockets;
-    std::optional<size_t> numa_nodes;
+    std::optional<std::size_t> cpus;
+    std::optional<std::size_t> threads_per_core;
+    std::optional<std::size_t> cores_per_socket;
+    std::optional<std::size_t> sockets;
+    std::optional<std::size_t> numa_nodes;
     std::optional<std::string> model_name;
     std::optional<double> cpu_mhz;
 };
