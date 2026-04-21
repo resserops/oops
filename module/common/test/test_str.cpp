@@ -4,9 +4,6 @@
 #include "oops/view.h"
 #include "gtest/gtest.h"
 
-auto CHAR_SET{
-    oops::Iota<int>(std::numeric_limits<char>::min(), static_cast<short>(std::numeric_limits<char>::max()) + 1)};
-
 template <auto Value>
 constexpr auto CONSTEXPR_VALUE{Value};
 
@@ -31,7 +28,7 @@ TEST(CommonStr, IsUpper) {
 }
 
 TEST(CommonStr, IsUpperSameAsStd) {
-    for (char c : CHAR_SET) {
+    for (char c : oops::view::IntegerSet<char>) {
         int c_int{static_cast<unsigned char>(c)};
         // TODO(resserops): 后续16进制通过formatter控制
         EXPECT_EQ(oops::IsUpper(c), std::isupper(c_int) != 0)
@@ -56,7 +53,7 @@ TEST(CommonStr, IsLower) {
 }
 
 TEST(CommonStr, IsLowerSameAsStd) {
-    for (char c : CHAR_SET) {
+    for (char c : oops::view::IntegerSet<char>) {
         int c_int{static_cast<unsigned char>(c)};
         // TODO(resserops): 后续16进制通过formatter控制
         EXPECT_EQ(oops::IsLower(c), std::islower(c_int) != 0)
@@ -83,7 +80,7 @@ TEST(CommonStr, IsAlpha) {
 }
 
 TEST(CommonStr, IsAlphaSameAsStd) {
-    for (char c : CHAR_SET) {
+    for (char c : oops::view::IntegerSet<char>) {
         int c_int{static_cast<unsigned char>(c)};
         // TODO(resserops): 后续16进制通过formatter控制
         EXPECT_EQ(oops::IsAlpha(c), std::isalpha(c_int) != 0)
@@ -107,7 +104,7 @@ TEST(CommonStr, IsDigit) {
 }
 
 TEST(CommonStr, IsDigitSameAsStd) {
-    for (char c : CHAR_SET) {
+    for (char c : oops::view::IntegerSet<char>) {
         int c_int{static_cast<unsigned char>(c)};
         // TODO(resserops): 后续16进制通过formatter控制
         EXPECT_EQ(oops::IsDigit(c), std::isdigit(c_int) != 0)
@@ -138,7 +135,7 @@ TEST(CommonStr, IsAlnum) {
 
 TEST(CommonStr, IsAlnumSameAsStd) {
     std::size_t count{0};
-    for (char c : CHAR_SET) {
+    for (char c : oops::view::IntegerSet<char>) {
         int c_int{static_cast<unsigned char>(c)};
         // TODO(resserops): 后续16进制通过formatter控制
         EXPECT_EQ(oops::IsAlnum(c), std::isalnum(c_int) != 0)
@@ -165,7 +162,7 @@ TEST(CommonStr, ToLowerConstexpr) {
 }
 
 TEST(CommonStr, ToLowerSameAsStd) {
-    for (char c : CHAR_SET) {
+    for (char c : oops::view::IntegerSet<char>) {
         int c_int{static_cast<unsigned char>(c)};
         // TODO(resserops): 后续16进制通过formatter控制
         EXPECT_EQ(oops::ToLower(c), static_cast<char>(std::tolower(c_int)))
@@ -190,7 +187,7 @@ TEST(CommonStr, ToUpper) {
 }
 
 TEST(CommonStr, ToUpperSameAsStd) {
-    for (char c : CHAR_SET) {
+    for (char c : oops::view::IntegerSet<char>) {
         int c_int{static_cast<unsigned char>(c)};
         // TODO(resserops): 后续16进制通过formatter控制
         EXPECT_EQ(oops::ToUpper(c), static_cast<char>(std::toupper(c_int)))

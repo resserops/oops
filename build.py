@@ -18,11 +18,11 @@ cmake_args += f'-DENABLE_ASAN={args.asan} '
 cmake_args += f'-DENABLE_TEST={args.test} '
 
 def system_errexit(command: str):
-    ret = os.system(command)
-    exit_code = ret  >> 8
+    res = os.system(command)
+    exit_code = res  >> 8
     if exit_code != 0:
         sys.exit(exit_code)
-    signal = ret & 0xFF
+    signal = res & 0xFF
     if signal != 0:
         sys.exit(128 + signal)
 

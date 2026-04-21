@@ -84,9 +84,9 @@ private:
             return std::monostate{}; // 无法打开文件，返回空类型
         }
 
-        auto ret{std::fgets(buf, sizeof(buf), f)};
+        auto res{std::fgets(buf, sizeof(buf), f)};
         std::fclose(f);
-        if (ret == nullptr) {
+        if (res == nullptr) {
             return std::monostate{}; // 读取失败，返回空类型
         }
 
