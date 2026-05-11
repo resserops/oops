@@ -10,3 +10,6 @@
 [submodule "third_party/scnlib"]
 	path = third_party/scnlib
 	url = https://github.com/eliaskosunen/scnlib.git
+[submodule "third_party/glob"]
+	path = third_party/glob
+	url = https://github.com/p-ranav/glob.git
