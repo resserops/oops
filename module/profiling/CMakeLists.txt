@@ -22,7 +22,7 @@ target_link_libraries(oops_profiling_d PRIVATE oops_profiling_o oops_common_d)
 target_link_libraries(oops_profiling_d INTERFACE oops_profiling_i)
 
 # 构建工具
-# add_subdirectory(tool)
+add_subdirectory(tool)
 
 if(ENABLE_TEST)
     # 构建测试负载

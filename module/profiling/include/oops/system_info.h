@@ -73,7 +73,7 @@ struct MemoryRange {
     std::optional<std::size_t> mapped;    // pages
     std::optional<std::size_t> mapmax;    // count
     std::optional<std::size_t> swapcache; // count
-    std::optional<std::size_t> active;    //  pages
+    std::optional<std::size_t> active;    // pages
     std::optional<std::size_t> writeback; // pages
 };
 
