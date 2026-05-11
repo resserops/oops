@@ -23,10 +23,17 @@ public:
 
     constexpr EnumBitset(const Bitset &rhs) : Bitset{rhs} {}
     EnumBitset(E e) : Bitset{ONE << static_cast<UnderlyingType>(e)} {}
+
     EnumBitset &operator|=(E e) {
         *(this) |= EnumBitset{e};
         return *this;
     }
+    EnumBitset &Set(E e) {
+        Bitset::set(static_cast<UnderlyingType>(e));
+        return *this;
+    }
+    bool Test(std::size_t pos) const { return Bitset::test(static_cast<UnderlyingType>(pos)); }
+    bool Test(E e) const { return Test(static_cast<UnderlyingType>(e)); }
 };
 
 template <typename E>

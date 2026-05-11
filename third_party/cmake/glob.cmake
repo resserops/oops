@@ -5,3 +5,6 @@ if(NOT EXISTS "${lib_dir}/CMakeLists.txt")
 endif()
 
 add_subdirectory(${lib_dir})
+if(TARGET Glob)
+    target_compile_options(Glob PRIVATE -w)  # 静默屏蔽-Werror报错
+endif()

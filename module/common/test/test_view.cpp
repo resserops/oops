@@ -162,6 +162,5 @@ TEST(CommonView, IntegerSet) {
     oops::view::Range<int>(21);
     oops::view::Range<int>(RANGE_OVERFLOW);
     oops::view::Range(10);
-    // oops::view::Range(RANGE_OVERFLOW);
     EXPECT_EQ(count, 256);
 }
