@@ -19,7 +19,7 @@ cmake_args += f'-DENABLE_TEST={args.test} '
 
 def system_errexit(command: str):
     res = os.system(command)
-    exit_code = res  >> 8
+    exit_code = res >> 8
     if exit_code != 0:
         sys.exit(exit_code)
     signal = res & 0xFF

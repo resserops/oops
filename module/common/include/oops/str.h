@@ -98,6 +98,8 @@ constexpr bool IsSpace(char c) noexcept {
 constexpr char ToUpper(char c) noexcept { return IsLower(c) ? (c - 'a' + 'A') : c; }
 constexpr char ToLower(char c) noexcept { return IsUpper(c) ? (c - 'A' + 'a') : c; }
 
+std::string ToLower(std::string_view s) noexcept;
+
 constexpr bool Equal(std::string_view lhs, std::string_view rhs) noexcept { return lhs == rhs; }
 
 template <typename CharEqual>
