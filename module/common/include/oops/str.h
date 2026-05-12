@@ -40,6 +40,11 @@ void Split(std::string_view s, const char *delim, Iter iter) {
 }
 
 template <typename Iter>
+void Split(std::string_view s, char delim, Iter iter) {
+    Split(s, std::string_view(&delim, 1), false, iter);
+}
+
+template <typename Iter>
 void SplitMultiDelim(std::string_view s, std::string_view delims, bool skip_empty, Iter iter) {
     std::size_t begin{0};
     while (begin < s.size()) {
@@ -166,6 +171,8 @@ constexpr std::string_view Strip(std::string_view s, std::string_view chars = SP
     }
     return s.substr(pos, s.find_last_not_of(chars) - pos + 1);
 }
+
+std::string Elide(std::string_view s, std::size_t n);
 
 template <typename T>
 ::std::string ToStr(const T &t) {
