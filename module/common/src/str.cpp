@@ -28,4 +28,14 @@ std::string ToLower(std::string_view s) noexcept {
     }
     return res;
 }
+
+std::string Elide(std::string_view s, std::size_t n) {
+    if (s.size() <= n) {
+        return std::string{s};
+    }
+    if (n <= 3) {
+        return std::string(n, '.');
+    }
+    return std::string{s.substr(0, n - 3)} + "...";
+}
 } // namespace oops

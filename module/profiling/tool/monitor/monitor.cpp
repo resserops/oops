@@ -18,6 +18,8 @@
 
 #include "argparse/argparse.hpp"
 #include "glob/glob.h"
+#include "pybind11/embed.h"
+#include "pybind11/stl.h"
 
 #include "oops/cpu_timer.h"
 #include "oops/enum_bitset.h"
@@ -26,6 +28,7 @@
 #include "oops/unit.h"
 
 namespace fs = std::filesystem;
+namespace py = pybind11;
 
 // 配置全局变量
 enum class ProgramType : uint8_t { MEASURE, REPORT };
@@ -56,13 +59,20 @@ struct MetricEntry {
     std::size_t width{6};
     MetricGroup group{};
 };
-inline MetricEntry METRIC_TABLE[] = {
-    {"Cpu(%)", 6, MetricGroup::CPU},
-    {"Rss(G)", 6, MetricGroup::MEMORY},
-    {"Hwm(G)", 6, MetricGroup::MEMORY},
-    {"Swap(G)", 6, MetricGroup::MEMORY}};
 
-// 公共函数
+constexpr MetricEntry METRIC_TABLE[] = {
+    {"%Cpu", 6, MetricGroup::CPU},
+    {"Rss(G)", 8, MetricGroup::MEMORY},
+    {"Hwm(G)", 8, MetricGroup::MEMORY},
+    {"Swap(G)", 8, MetricGroup::MEMORY}};
+
+// 测量功能
+bool ProcExist(pid_t pid) {
+    static std::string path{"/proc/" + std::to_string(pid)};
+    struct stat buffer;
+    return stat(path.c_str(), &buffer) == 0;
+}
+
 std::string TimestampToStr(std::chrono::system_clock::time_point time_point) {
     std::time_t time{std::chrono::system_clock::to_time_t(time_point)};
     std::tm *tm{std::localtime(&time)}; // std::localtime不可重入
@@ -75,9 +85,108 @@ std::string TimestampToStr(std::chrono::system_clock::time_point time_point) {
     return oss.str();
 }
 
+std::string MakeHeaderRow() {
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(2);
+    oss << std::setw(6) << "#"
+        << ", ";
+    for (auto &entry : METRIC_TABLE) {
+        if (ENABLED_METRIC_GROUP.Test(entry.group)) {
+            oss << std::setw(entry.width) << entry.name << ", ";
+        }
+    }
+    std::string res{oss.str()};
+    res.pop_back();
+    res.pop_back();
+    return res;
+}
+
+std::string MakeDataRow(const std::vector<double> &values) {
+    static std::size_t number{};
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(2);
+    oss << std::setw(6) << number++ << ", ";
+    for (std::size_t i{0}; i < oops::ToUnderlying(Metrics::COUNT); ++i) {
+        if (ENABLED_METRIC_GROUP.Test(METRIC_TABLE[i].group)) {
+            oss << std::setw(METRIC_TABLE[i].width) << values[i] << ", ";
+        }
+    }
+    std::string res{oss.str()};
+    res.pop_back();
+    res.pop_back();
+    return res;
+}
+
+void Measure() {
+    std::cout << std::fixed << std::setprecision(2);
+    std::cout << "Pid: " << getpid() << std::endl;
+    std::cout << "Tracked pid: " << ARGS.measure.pid << std::endl;
+    std::cout << "Interval: " << ARGS.measure.itv << "s" << std::endl;
+    std::cout << "Ticks per sec: " << oops::GetTicksPerSec() << std::endl;
+
+    // itv转换为毫秒定点数
+    std::chrono::milliseconds itv{static_cast<std::size_t>(1000 * ARGS.measure.itv)};
+
+    // 系统时钟盖时间戳，单调时钟算时间差
+    auto system_now{std::chrono::system_clock::now()};
+    oops::CpuTimer cpu_timer(ARGS.measure.pid); // 用于测量cpu时间
+
+    std::cout << "Timestamp: " << TimestampToStr(system_now) << '\n' << std::endl;
+    std::size_t step{0};
+    auto next_time{cpu_timer.GetElapsedT0() + (step + 1) * itv};
+
+    std::cout << "Monitoring results:" << std::endl;
+    std::cout << MakeHeaderRow() << std::endl;
+
+    std::vector<double> values(oops::ToUnderlying(Metrics::COUNT));
+    while (ProcExist(ARGS.measure.pid)) {
+        std::this_thread::sleep_until(next_time);
+
+        // 根据选项配置完成测量
+        if (ENABLED_METRIC_GROUP.Test(MetricGroup::CPU)) { // 有限测量区间指标，再测量单点指标
+            values[oops::ToUnderlying(Metrics::CPU_USAGE)] = 100 * cpu_timer.Lap().CpuUsage();
+        }
+
+        if (ENABLED_METRIC_GROUP.Test(MetricGroup::MEMORY)) {
+            using namespace oops::proc::status;
+            Info info{Get(ARGS.measure.pid, Field::VM_RSS | Field::VM_HWM | Field::VM_SWAP)};
+            values[oops::ToUnderlying(Metrics::RSS)] = oops::GiBs<double>{oops::KiBs<>{*info.vm_rss}}.Count();
+            values[oops::ToUnderlying(Metrics::HWM)] = oops::GiBs<double>{oops::KiBs<>{*info.vm_hwm}}.Count();
+            values[oops::ToUnderlying(Metrics::SWAP)] = oops::GiBs<double>{oops::KiBs<>{*info.vm_swap}}.Count();
+        }
+
+        // 打印测量结果，解耦测量和打印，支撑后续二进制格式
+        std::cout << MakeDataRow(values) << std::endl;
+
+        ++step;
+        next_time += itv;
+    }
+}
+
+// 报告全局变量
+struct MetricDataEntry {
+    MetricDataEntry(std::string s) : name{std::move(s)} {}
+    MetricDataEntry(std::string_view s) : name{s} {}
+    std::string name;
+    std::vector<double> values;
+};
+
+struct RawDataEntry {
+    RawDataEntry(std::string s) : raw_file_name{std::move(s)} {}
+    std::string raw_file_name;
+    pid_t pid{};
+    double interval{};
+    std::chrono::system_clock::time_point start_time;
+    std::vector<MetricDataEntry> metric_data_table;
+};
+
+inline std::vector<RawDataEntry> RAW_DATA_TABLE;
+
+// 报告功能
 std::chrono::system_clock::time_point StrToTimestamp(std::string_view sv) {
+    sv = oops::Strip(sv);
     if (sv.size() < 26) {
-        throw std::runtime_error("size not match");
+        throw std::runtime_error("size too small for timestamp format");
     }
     std::tm tm{};
 
@@ -87,45 +196,78 @@ std::chrono::system_clock::time_point StrToTimestamp(std::string_view sv) {
     auto time_point{std::chrono::system_clock::from_time_t(std::mktime(&tm))};
 
     // 解析微秒
-    std::size_t us;
+    std::size_t us{};
     std::from_chars(sv.data() + 20, sv.data() + 26, us);
     return time_point + std::chrono::microseconds(us);
 }
 
-bool ProcExist(pid_t pid) {
-    static std::string path{"/proc/" + std::to_string(pid)};
-    struct stat buffer;
-    return stat(path.c_str(), &buffer) == 0;
+void SearchValidInput() {
+    std::vector<fs::path> literal_input;
+    std::vector<std::string> patterns;
+    for (const auto &input : ARGS.report.input) {
+        fs::path input_path{input};
+        if (input_path.is_absolute()) {
+            if (input.find_first_of("*?") != std::string::npos) {
+                // glob绝对路径
+                patterns.push_back(input);
+            } else {
+                // 普通绝对路径
+                literal_input.push_back(input_path);
+            }
+        } else {
+            assert(input_path.is_relative());
+            for (const auto &dir : ARGS.report.dir) {
+                assert(!fs::is_directory(dir));
+                if (input.find_first_of("*?") != std::string::npos) {
+                    // glob相对路径，那么在dir中递归查找glob
+                    patterns.push_back((dir / "**" / input_path).string());
+                    patterns.push_back((dir / input_path).string());
+                } else {
+                    // 普通相对路径，仅拼接
+                    literal_input.push_back(dir / input_path);
+                }
+            }
+        }
+    }
+
+    // glob匹配
+    for (const auto &pattern : patterns) {
+        for (const auto &path : glob::rglob(pattern)) {
+            literal_input.push_back(path);
+        }
+    }
+
+    // 经典化路径并去重
+    std::vector<fs::path> valid_input;
+    for (const auto &path : literal_input) {
+        std::error_code errc;
+        if (fs::exists(path, errc) && fs::is_regular_file(path, errc)) {
+            fs::path canonical_path{fs::canonical(path)};
+            if (!errc) {
+                valid_input.push_back(std::move(canonical_path));
+            } else {
+                std::cerr << "Warning: bad path. ignored" << std::endl;
+            }
+        }
+    }
+
+    // 去重
+    std::sort(valid_input.begin(), valid_input.end());
+    auto pos{std::unique(valid_input.begin(), valid_input.end())};
+    valid_input.erase(pos, valid_input.end());
+
+    ARGS.report.valid_input = std::move(valid_input);
 }
-
-struct SampleEntry {
-    SampleEntry(std::string s) : name{std::move(s)} {}
-    SampleEntry(std::string_view s) : name{s} {}
-    std::string name;
-    std::vector<double> values;
-};
-
-struct RawDataEntry {
-    fs::path raw_file_path;
-    pid_t pid{};
-    std::size_t interval{};
-    std::chrono::system_clock::time_point start_time;
-    std::vector<SampleEntry> sample_table;
-};
-
-inline std::vector<RawDataEntry> RAW_DATA_TABLE;
-
-struct ParseValueAfterPrefixResult {
-    explicit operator bool() const noexcept { return matched && parsed; }
-    std::string_view remain;
-    bool matched{false};
-    bool parsed{false};
-};
 
 template <typename T>
 auto ParseValueAfterPrefix(std::string_view s, std::string_view prefix, T &value) noexcept {
-    ParseValueAfterPrefixResult res;
     s = oops::Strip(s);
+    struct {
+        explicit operator bool() const noexcept { return matched && parsed; }
+        std::string_view remain;
+        bool matched{false};
+        bool parsed{false};
+    } res;
 
     auto pos{s.find(prefix)};
     if (pos == std::string_view::npos) {
@@ -181,17 +323,17 @@ void ParseRawData(std::istream &is, RawDataEntry &entry) {
         }
 
         case Step::HEADER_ROW: {
-            auto tokens{oops::Split<std::vector<std::string_view>>(line)};
+            auto tokens{oops::Split<std::vector<std::string_view>>(line, ", ")};
             metric_num = tokens.size();
             for (auto token : tokens) {
-                entry.sample_table.emplace_back(token);
+                entry.metric_data_table.emplace_back(oops::Strip(token));
             }
             step = Step::DATA_ROW;
             break;
         }
 
         case Step::DATA_ROW: {
-            auto tokens{oops::Split<std::vector<std::string_view>>(line)};
+            auto tokens{oops::Split<std::vector<std::string_view>>(line, ", ")};
             if (metric_num == 0) {
                 throw std::runtime_error("bad metric num");
             }
@@ -200,12 +342,14 @@ void ParseRawData(std::istream &is, RawDataEntry &entry) {
             }
             for (std::size_t i{0}; i < tokens.size(); ++i) {
                 double d{};
-                std::from_chars(tokens[i].data(), tokens[i].data() + tokens[i].size(), d);
-                entry.sample_table[i].values.push_back(d);
+                auto token{oops::Strip(tokens[i])};
+                std::from_chars(token.data(), token.data() + token.size(), d);
+                entry.metric_data_table[i].values.push_back(d);
             }
             break;
         }
         }
+        assert(step == Step::DATA_ROW);
     }
 }
 
@@ -214,147 +358,106 @@ void ParseRawData(const fs::path &path, RawDataEntry &entry) {
     ParseRawData(ifs, entry);
 }
 
-std::string MakeHeaderRow() {
-    std::ostringstream oss;
-    oss << std::fixed << std::setprecision(2);
-    oss << std::setw(6) << "#"
-        << ", ";
-    for (auto &entry : METRIC_TABLE) {
-        if (ENABLED_METRIC_GROUP.Test(entry.group)) {
-            oss << std::setw(entry.width) << entry.name << ", ";
-        }
+void PlotCpu() {
+    if (RAW_DATA_TABLE.empty()) {
+        return;
     }
-    std::string res{oss.str()};
-    res.pop_back();
-    res.pop_back();
-    return res;
-}
 
-std::string MakeDataRow(const std::vector<double> &values) {
-    static std::size_t number{};
-    std::ostringstream oss;
-    oss << std::fixed << std::setprecision(2);
-    oss << std::setw(6) << number++ << ", ";
-    for (std::size_t i{0}; i < oops::ToUnderlying(Metrics::COUNT); ++i) {
-        if (ENABLED_METRIC_GROUP.Test(METRIC_TABLE[i].group)) {
-            oss << std::setw(METRIC_TABLE[i].width) << values[i] << ", ";
-        }
-    }
-    std::string res{oss.str()};
-    res.pop_back();
-    res.pop_back();
-    return res;
-}
-
-void Measure() {
-    std::cout << std::fixed << std::setprecision(2);
-    std::cout << "Tracked pid: " << ARGS.measure.pid << std::endl;
-    std::cout << "Interval: " << ARGS.measure.itv << "s" << std::endl;
-    std::cout << "Ticks per sec: " << oops::GetTicksPerSec() << std::endl;
-
-    // itv转换为毫秒定点数
-    std::chrono::milliseconds itv{static_cast<std::size_t>(1000 * ARGS.measure.itv)};
-
-    // 系统时钟盖时间戳，单调时钟算时间差
-    auto system_now{std::chrono::system_clock::now()};
-    oops::CpuTimer cpu_timer(ARGS.measure.pid); // 用于测量cpu时间
-
-    std::cout << "Timestamp: " << TimestampToStr(system_now) << '\n' << std::endl;
-    std::size_t step{0};
-    auto next_time{cpu_timer.GetElapsedT0() + (step + 1) * itv};
-
-    std::cout << "Monitoring results:" << std::endl;
-    std::cout << MakeHeaderRow() << std::endl;
-
-    std::vector<double> values(oops::ToUnderlying(Metrics::COUNT));
-    while (ProcExist(ARGS.measure.pid)) {
-        std::this_thread::sleep_until(next_time);
-
-        // 根据选项配置完成测量
-        if (ENABLED_METRIC_GROUP.Test(MetricGroup::CPU)) { // 有限测量区间指标，再测量单点指标
-            values[oops::ToUnderlying(Metrics::CPU_USAGE)] = cpu_timer.Lap().CpuUsage();
-        }
-
-        if (ENABLED_METRIC_GROUP.Test(MetricGroup::MEMORY)) {
-            using namespace oops::proc::status;
-            Info info{Get(ARGS.measure.pid, Field::VM_RSS | Field::VM_HWM | Field::VM_SWAP)};
-            values[oops::ToUnderlying(Metrics::RSS)] = oops::GiBs<double>{oops::KiBs<>{*info.vm_rss}}.Count();
-            values[oops::ToUnderlying(Metrics::HWM)] = oops::GiBs<double>{oops::KiBs<>{*info.vm_hwm}}.Count();
-            values[oops::ToUnderlying(Metrics::SWAP)] = oops::GiBs<double>{oops::KiBs<>{*info.vm_swap}}.Count();
-        }
-
-        // 打印测量结果，解耦测量和打印，支撑后续二进制格式
-        std::cout << MakeDataRow(values) << std::endl;
-
-        ++step;
-        next_time += itv;
-    }
-}
-
-void SearchValidInput() {
-    std::vector<fs::path> literal_input;
-    std::vector<std::string> patterns;
-    for (const auto &input : ARGS.report.input) {
-        fs::path input_path{input};
-        if (input_path.is_absolute()) {
-            if (input.find_first_of("*?") != std::string::npos) {
-                // glob绝对路径
-                patterns.push_back(input);
-            } else {
-                // 普通绝对路径
-                literal_input.push_back(input_path);
+    // 识别记录了CPU利用率的raw data idx及对应CPU利用率的metric data dix
+    std::vector<std::pair<std::size_t, std::size_t>> valid_idxs;
+    for (std::size_t i{0}; i < RAW_DATA_TABLE.size(); ++i) {
+        const auto &r_entry{RAW_DATA_TABLE[i]};
+        for (std::size_t j{0}; j < r_entry.metric_data_table.size(); ++j) {
+            const auto &m_entry{r_entry.metric_data_table.at(j)};
+            if (m_entry.name == METRIC_TABLE[oops::ToUnderlying(Metrics::CPU_USAGE)].name && !m_entry.values.empty()) {
+                valid_idxs.emplace_back(i, j);
             }
+        }
+    }
+    if (valid_idxs.empty()) {
+        return;
+    }
+
+    // 最早start_time
+    std::chrono::system_clock::time_point start_time{std::chrono::system_clock::time_point::max()};
+    for (const auto &p : valid_idxs) {
+        start_time = std::min(start_time, RAW_DATA_TABLE[p.first].start_time);
+    }
+
+    // 最大数值
+    double max_value{std::numeric_limits<double>::min()};
+    for (const auto &[r_idx, m_idx] : valid_idxs) {
+        for (double value : RAW_DATA_TABLE[r_idx].metric_data_table[m_idx].values) {
+            max_value = std::max(max_value, value);
+        }
+    }
+
+    try {
+        py::scoped_interpreter guard{}; // 绘图函数仅执行单次
+        auto plt{py::module_::import("matplotlib.pyplot")};
+        auto subplots{plt.attr("subplots")(
+            valid_idxs.size(), 1, py::arg("sharex") = true,
+            py::arg("figsize") = py::make_tuple(
+                16, std::max<std::size_t>(std::min<std::size_t>(9, 3 * valid_idxs.size()), valid_idxs.size())))};
+
+        py::list axes; // 存储所有子图，使用vector反而会有拷贝和引用计数开销
+        if (valid_idxs.size() == 1) {
+            axes.append(subplots[py::int_(1)]);
         } else {
-            assert(input_path.is_relative());
-            for (const auto &dir : ARGS.report.dir) {
-                assert(!fs::is_directory(dir));
-                if (input.find_first_of("*?") != std::string::npos) {
-                    // glob相对路径，那么在dir中递归查找glob
-                    patterns.push_back((dir / "**" / input_path).string());
-                } else {
-                    // 普通相对路径，仅拼接
-                    literal_input.push_back(dir / input_path);
-                }
+            axes = subplots[py::int_(1)].cast<py::list>();
+        }
+
+        for (std::size_t i{0}; i < valid_idxs.size(); ++i) {
+            const auto &r_entry{RAW_DATA_TABLE[valid_idxs[i].first]};
+            const auto &m_entry{r_entry.metric_data_table[valid_idxs[i].second]};
+            double offset{std::chrono::duration<double>{r_entry.start_time - start_time}.count()};
+
+            // 构造时间数组，由于offset差异，每个raw data需要单独构造
+            std::vector<double> times;
+            for (std::size_t j{0}; j < m_entry.values.size(); ++j) {
+                times.push_back(offset + j * r_entry.interval);
             }
+
+            auto ax{axes[i]};
+            // 使用step绘制阶梯图，post逻辑：第0个点，时刻是0，对应[0, itv]区间的平均CPU利用率
+            ax.attr("step")(
+                times, m_entry.values, py::arg("where") = "post", py::arg("label") = m_entry.name,
+                py::arg("linewidth") = 1.5);
+            ax.attr("margins")(py::arg("x") = 0);
+            ax.attr("grid")(true, py::arg("linestyle") = "--", py::arg("alpha") = 0.5);
+            double ylim{std::max(100., std::ceil(max_value / 100) * 100)};
+            ax.attr("set_ylim")(-ylim / 20, ylim + ylim / 20); // 对齐每个子图y坐标范围
+            // 绘制每个子图左侧描述raw data的标签
+            ax.attr("set_ylabel")(
+                "#" + std::to_string(i) + "\nPid: " + std::to_string(r_entry.pid) + "\n" +
+                    oops::Elide(r_entry.raw_file_name, 10),
+                py::arg("rotation") = 0, py::arg("labelpad") = 30, py::arg("va") = "center");
+            ax.attr("legend")(py::arg("loc") = "upper right");
         }
+
+        plt.attr("suptitle")(
+            "CPU Utilization Time Series (%)", py::arg("fontsize") = 16, py::arg("fontweight") = "bold");
+        plt.attr("xlabel")("Time (s)");
+        plt.attr("tight_layout")();
+        plt.attr("show")();
+    } catch (const py::error_already_set &e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        exit(1);
     }
-
-    // glob匹配
-    for (const auto &pattern : patterns) {
-        for (const auto &path : glob::rglob(pattern)) {
-            literal_input.push_back(path);
-        }
-    }
-
-    // 经典化路径并去重
-    std::vector<fs::path> valid_input;
-    for (const auto &path : literal_input) {
-        std::error_code errc;
-        if (fs::exists(path, errc) && fs::is_regular_file(path, errc)) {
-            fs::path canonical_path{fs::canonical(path)};
-            if (!errc) {
-                valid_input.push_back(std::move(canonical_path));
-            } else {
-                std::cerr << "Warning: bad path. ignored" << std::endl;
-            }
-        }
-    }
-
-    // 去重
-    std::sort(valid_input.begin(), valid_input.end());
-    auto pos{std::unique(valid_input.begin(), valid_input.end())};
-    valid_input.erase(pos, valid_input.end());
-
-    ARGS.report.valid_input = std::move(valid_input);
 }
 
 void Report() {
+    // 搜索日志文件
     SearchValidInput();
-    std::size_t raw_file_num{ARGS.report.valid_input.size()};
-    RAW_DATA_TABLE.resize(raw_file_num);
-    for (std::size_t i{0}; i < raw_file_num; ++i) {
-        ParseRawData(ARGS.report.valid_input[i], RAW_DATA_TABLE[i]);
+
+    // 解析数据
+    for (const auto &p : ARGS.report.valid_input) {
+        RAW_DATA_TABLE.emplace_back(p.filename().string());
+        ParseRawData(p, RAW_DATA_TABLE.back());
     }
+
+    // 绘制CPU利用率折线图
+    PlotCpu();
 }
 
 // 参数解析
@@ -377,14 +480,20 @@ void ParseArgs(int argc, char *argv[]) {
     report.add_argument("input").help("comma-separated sequence of raw data file").required();
     report.add_argument("-d", "--dir")
         .help("the root directory to search for files matching the 'input' pattern")
-        .default_value(std::filesystem::current_path().string());
+        .default_value(".");
     program.add_subparser(report);
 
     try {
         program.parse_args(argc, argv);
     } catch (const std::exception &e) {
         std::cerr << "Error: " << e.what() << std::endl;
-        std::cerr << program;
+        if (program.is_subcommand_used(measure)) {
+            std::cerr << measure;
+        } else if (program.is_subcommand_used(report)) {
+            std::cerr << report;
+        } else {
+            std::cerr << program;
+        }
         exit(1);
     }
 
@@ -452,8 +561,6 @@ void ParseArgs(int argc, char *argv[]) {
                       << std::endl;
             ARGS.report.dir.emplace_back(fs::current_path());
         }
-    } else {
-        std::cout << program << std::endl;
     }
 }
 
