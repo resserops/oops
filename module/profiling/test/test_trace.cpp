@@ -10,21 +10,18 @@ using namespace oops;
 
 #include <time.h>
 
-// 高效 busy-wait：目标是消耗 exactly 'us' 微秒的 CPU 时间
+// Busy wait：消耗指定微秒数的cpu时间
 void cpu_burn_us(uint64_t us) {
     if (us == 0)
         return;
 
     struct timespec start, now;
     clock_gettime(CLOCK_MONOTONIC, &start);
-
     uint64_t end_ns = (uint64_t)start.tv_sec * 1000000000ULL + (uint64_t)start.tv_nsec + us * 1000ULL; // us → ns
 
-    // 忙等待循环（不调用任何可能 sleep 的函数）
     do {
-        // 关键：只做轻量级操作，避免 cache miss / 分支预测失败
-        __asm__ volatile("");                 // 防止编译器优化掉空循环
-        clock_gettime(CLOCK_MONOTONIC, &now); // 可接受少量开销（<1%）
+        __asm__ volatile("");
+        clock_gettime(CLOCK_MONOTONIC, &now);
     } while ((uint64_t)now.tv_sec * 1000000000ULL + (uint64_t)now.tv_nsec < end_ns);
 }
 

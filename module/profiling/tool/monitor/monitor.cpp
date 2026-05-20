@@ -150,9 +150,9 @@ void Measure() {
         if (ENABLED_METRIC_GROUP.Test(MetricGroup::MEMORY)) {
             using namespace oops::proc::status;
             Info info{Get(ARGS.measure.pid, Field::VM_RSS | Field::VM_HWM | Field::VM_SWAP)};
-            values[oops::ToUnderlying(Metrics::RSS)] = oops::GiBs<double>{oops::KiBs<>{*info.vm_rss}}.Count();
-            values[oops::ToUnderlying(Metrics::HWM)] = oops::GiBs<double>{oops::KiBs<>{*info.vm_hwm}}.Count();
-            values[oops::ToUnderlying(Metrics::SWAP)] = oops::GiBs<double>{oops::KiBs<>{*info.vm_swap}}.Count();
+            values[oops::ToUnderlying(Metrics::RSS)] = oops::GiBs<double>{oops::KiBs<>{info.vm_rss}}.Count();
+            values[oops::ToUnderlying(Metrics::HWM)] = oops::GiBs<double>{oops::KiBs<>{info.vm_hwm}}.Count();
+            values[oops::ToUnderlying(Metrics::SWAP)] = oops::GiBs<double>{oops::KiBs<>{info.vm_swap}}.Count();
         }
 
         // 打印测量结果，解耦测量和打印，支撑后续二进制格式
