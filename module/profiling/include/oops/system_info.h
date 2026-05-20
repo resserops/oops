@@ -12,7 +12,7 @@
 namespace oops {
 namespace proc {
 namespace status {
-enum class Field {
+enum class Field : uint8_t {
     VM_PEAK,
     VM_SIZE,
     VM_LCK,
@@ -33,23 +33,23 @@ enum class Field {
 using FieldMask = EnumBitset<Field>;
 using oops::operator|; // 支持Field和FieldMask或运算ADL
 
-// 当前只解析内存部分
 struct Info {
-    std::optional<std::size_t> vm_peak;
-    std::optional<std::size_t> vm_size;
-    std::optional<std::size_t> vm_lck;
-    std::optional<std::size_t> vm_pin;
-    std::optional<std::size_t> vm_hwm;
-    std::optional<std::size_t> vm_rss;
-    std::optional<std::size_t> rss_anon;
-    std::optional<std::size_t> rss_file;
-    std::optional<std::size_t> rss_shmem;
-    std::optional<std::size_t> vm_data;
-    std::optional<std::size_t> vm_stk;
-    std::optional<std::size_t> vm_exe;
-    std::optional<std::size_t> vm_lib;
-    std::optional<std::size_t> vm_pte;
-    std::optional<std::size_t> vm_swap;
+    std::size_t vm_peak{}; // 当前只解析内存部分
+    std::size_t vm_size{};
+    std::size_t vm_lck{};
+    std::size_t vm_pin{};
+    std::size_t vm_hwm{};
+    std::size_t vm_rss{};
+    std::size_t rss_anon{};
+    std::size_t rss_file{};
+    std::size_t rss_shmem{};
+    std::size_t vm_data{};
+    std::size_t vm_stk{};
+    std::size_t vm_exe{};
+    std::size_t vm_lib{};
+    std::size_t vm_pte{};
+    std::size_t vm_swap{};
+    FieldMask parsed;
 };
 
 [[nodiscard]] Info Get();
@@ -58,6 +58,7 @@ struct Info {
 [[nodiscard]] Info Get(int pid, const FieldMask &field_mask);
 ::std::ostream &operator<<(::std::ostream &out, const Info &info);
 } // namespace status
+
 namespace numa_maps {
 // Since Linux 2.6.14
 struct MemoryRange {
@@ -101,14 +102,15 @@ using FieldMask = EnumBitset<Field>;
 using oops::operator|; // 支持Field和FieldMask或运算ADL
 
 struct Info {
-    std::optional<std::string> architecture;
-    std::optional<std::size_t> cpus;
-    std::optional<std::size_t> threads_per_core;
-    std::optional<std::size_t> cores_per_socket;
-    std::optional<std::size_t> sockets;
-    std::optional<std::size_t> numa_nodes;
-    std::optional<std::string> model_name;
-    std::optional<double> cpu_mhz;
+    std::string architecture{};
+    std::size_t cpus{};
+    std::size_t threads_per_core{};
+    std::size_t cores_per_socket{};
+    std::size_t sockets{};
+    std::size_t numa_nodes{};
+    std::string model_name{};
+    double cpu_mhz{};
+    FieldMask parsed;
 };
 
 [[nodiscard]] Info Get();

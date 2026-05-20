@@ -16,9 +16,7 @@
 
 #include "oops/format.h"
 #include "oops/str.h"
-
-#define ENTRY(key, field, member, parse, format) \
-    oops::FieldEntry<Field, Info, MemberPtrVar>({Field::field, #field, key, #member, &Info::member, parse, format})
+#include "oops/type_list.h"
 
 namespace oops {
 // 获取命令输出
@@ -36,164 +34,149 @@ std::string GetCmdOutput(const std::string &cmd) {
     return output;
 }
 
-// 单字段的提取、解析
 template <typename T>
-bool FromSv(std::string_view sv, std::optional<T> &value) {
+bool FromSv(std::string_view sv, T &value) {
     value = FromStr<T>(sv);
     return true;
 }
 
-template <typename Info, typename MemberPtrVar>
-bool Parse(std::string_view value, MemberPtrVar member_ptr_var, Info &info) {
-    auto f = [value, &info](auto member_ptr) {
-        auto &member{info.*member_ptr};
-        return FromSv(value, member);
+// 新版KeyValueParser
+template <typename S, typename F, typename TL>
+class KeyValueParser {
+    template <typename T>
+    using MemberPtr = T S::*; // 辅助元函数生成T S::*成员指针
+    using MemberPtrList = oops::meta::TransformT<MemberPtr, TL>;
+
+public:
+    static_assert(std::is_enum_v<F>);
+
+    using Struct = S;
+    using Field = F;
+    using MemberPtrVar = oops::meta::ApplyT<std::variant, MemberPtrList>;
+
+    struct Entry {
+        Field field{};
+        std::string_view key;
+        MemberPtrVar member_ptr_var;
+        bool (*parse)(std::string_view, MemberPtrVar, Struct &){ParseField};
+        std::string (*format)(MemberPtrVar, const Struct &){FormatField};
     };
-    return std::visit(f, member_ptr_var);
-}
 
-template <typename Info, typename MemberPtrVar>
-std::string Format(MemberPtrVar member_ptr_var, const Info &info) {
-    auto f = [&info](auto member_ptr) -> std::string {
-        auto &member{info.*member_ptr};
-        if (!member) {
-            return {};
-        }
-        return ToStr(*member);
-    };
-    return std::visit(f, member_ptr_var);
-}
+    explicit KeyValueParser(std::initializer_list<Entry> entries, std::string delim = ":")
+        : field_table_{entries}, delim_{std::move(delim)} {}
 
-// 用于解析PairedInfo的字段表
-template <typename Field, typename Info, typename MemberPtrVar>
-struct FieldEntry {
-    Field field;
-    std::string_view field_str;
-    std::string_view key;
-    std::string_view member_str;
-    MemberPtrVar member_ptr_var;
-    bool (*parse)(std::string_view, MemberPtrVar, Info &);
-    std::string (*format)(MemberPtrVar, const Info &);
-};
-
-template <typename Field, typename Info, typename MemberPtrVar>
-using FieldTable = std::array<FieldEntry<Field, Info, MemberPtrVar>, ToUnderlying(Field::COUNT)>;
-
-// 判断字段表是否合法的编译期检查函数
-constexpr bool CaseInsensitiveEqual(char lhs, char rhs) noexcept { return ToLower(lhs) == ToLower(rhs); }
-
-template <typename Field, typename Info, typename MemberPtrVar>
-constexpr bool CheckFieldTableMapping(const FieldTable<Field, Info, MemberPtrVar> &field_table) {
-    if (field_table.size() != ToUnderlying(Field::COUNT)) {
-        return false;
+    static bool ParseField(std::string_view value, MemberPtrVar member_ptr_var, Struct &obj) {
+        auto f = [value, &obj](auto member_ptr) {
+            auto &member{obj.*member_ptr};
+            return FromSv(value, member);
+        };
+        return std::visit(f, member_ptr_var);
     }
-    for (std::size_t i{0}; i < field_table.size(); ++i) {
-        if (i != static_cast<std::size_t>(ToUnderlying(field_table[i].field))) {
-            return false;
-        }
-        if (!Equal(field_table[i].field_str, field_table[i].member_str, CaseInsensitiveEqual)) {
-            return false;
-        }
-        if (!Equal(field_table[i].key, field_table[i].field_str, CaseInsensitiveEqual, IsAlnum)) {
-            return false;
-        }
+
+    static std::string FormatField(MemberPtrVar member_ptr_var, const Struct &obj) {
+        auto f = [&obj](auto member_ptr) -> std::string {
+            auto &member{obj.*member_ptr};
+            return ToStr(member);
+        };
+        return std::visit(f, member_ptr_var);
     }
-    return true;
-}
 
-// 针对PariedInfo解析和打印的通用函数
-template <typename Field, typename Info, typename MemberPtrVar>
-Info GetPairedInfo(
-    std::istream &is, const FieldTable<Field, Info, MemberPtrVar> &field_table, const EnumBitset<Field> &field_mask) {
-    Info info;
-    std::string line_buf;
+    auto Parse(std::istream &is, const EnumBitset<Field> &field_mask) {
+        struct {
+            Struct object;
+            EnumBitset<Field> parsed;
+        } res;
 
-    EnumBitset<Field> checked;
-    while (std::getline(is, line_buf)) {
-        std::string_view line{line_buf};
-        std::size_t pos{line.find(':')};
-        if (pos == line.npos) {
-            continue;
-        }
+        std::string line_buf;
+        while (std::getline(is, line_buf)) {
+            std::string_view line{line_buf};
+            std::size_t pos{line.find(delim_)};
+            if (pos == line.npos) {
+                continue;
+            }
 
-        std::string_view key{Strip(line.substr(0, pos))};
-        if (key.empty()) {
-            continue;
-        }
+            std::string_view key{Strip(line.substr(0, pos))};
+            if (key.empty()) {
+                continue;
+            }
 
-        std::size_t i{0};
-        for (; i < field_table.size(); ++i) {
-            if (field_mask[i] && field_table[i].key == key) {
-                break;
+            auto it{std::find_if(
+                field_table_.begin(), field_table_.end(), [&key](const auto &entry) { return entry.key == key; })};
+            if (it == field_table_.end()) {
+                continue; // 未找到匹配的entry
+            }
+            if (!field_mask.Test(it->field)) {
+                continue; // 不用解析
+            }
+            if (res.parsed.Test(it->field)) {
+                continue; // 已解析过
+            }
+
+            std::string_view value{Strip(line.substr(pos + 1))};
+            if (value.empty()) {
+                continue;
+            }
+
+            it->parse(value, it->member_ptr_var, res.object);
+            res.parsed |= it->field;
+            if (res.parsed == field_mask) {
+                break; // 已解析全量
             }
         }
-        if (i >= field_table.size()) {
-            continue;
-        }
-
-        std::string_view value{Strip(line.substr(pos + 1))};
-        if (value.empty()) {
-            continue;
-        }
-
-        field_table[i].parse(value, field_table[i].member_ptr_var, info);
-        checked |= static_cast<Field>(i);
-        if (checked == field_mask) {
-            break;
-        }
+        return res;
     }
-    return info;
-}
 
-// TODO(resserops): 传入bitmap判断打印哪些内容
-template <typename Field, typename Info, typename MemberPtrVar>
-void OutputPairedInfo(
-    std::ostream &os, const Info &info, const FieldTable<Field, Info, MemberPtrVar> &field_table,
-    const EnumBitset<Field> &) {
-    FTable ftable;
-    for (const auto &meta : field_table) {
-        std::string value{meta.format(meta.member_ptr_var, info)};
-        if (!value.empty()) {
-            ftable.AppendRow(std::string{meta.key} + ":", value);
+    void Format(std::ostream &os, const Struct &object, const EnumBitset<Field> &field_mask = ~EnumBitset<Field>{}) {
+        FTable ftable;
+        for (const auto &entry : field_table_) {
+            if (field_mask.Test(entry.field)) {
+                std::string value{entry.format(entry.member_ptr_var, object)};
+                if (!value.empty()) {
+                    ftable.AppendRow(std::string{entry.key} + delim_, value);
+                }
+            }
         }
+        os << ftable;
     }
-    os << ftable;
-}
+
+private:
+    std::vector<Entry> field_table_;
+    std::string delim_;
+};
 
 namespace proc {
 namespace status {
-using MemberPtrVar = std::variant<std::optional<std::size_t> Info::*>; // 定义所有类型的成员变量指针
-constexpr auto PARSE{oops::Parse<Info, MemberPtrVar>};
-constexpr auto FORMAT{oops::Format<Info, MemberPtrVar>};
+KeyValueParser<Info, Field, std::tuple<std::size_t>> parser{
+    {Field::VM_PEAK, "VmPeak", &Info::vm_peak},       {Field::VM_SIZE, "VmSize", &Info::vm_size},
+    {Field::VM_LCK, "VmLck", &Info::vm_lck},          {Field::VM_PIN, "VmPin", &Info::vm_pin},
+    {Field::VM_HWM, "VmHWM", &Info::vm_hwm},          {Field::VM_RSS, "VmRSS", &Info::vm_rss},
+    {Field::RSS_ANON, "RssAnon", &Info::rss_anon},    {Field::RSS_FILE, "RssFile", &Info::rss_file},
+    {Field::RSS_SHMEM, "RssShmem", &Info::rss_shmem}, {Field::VM_DATA, "VmData", &Info::vm_data},
+    {Field::VM_STK, "VmStk", &Info::vm_stk},          {Field::VM_EXE, "VmExe", &Info::vm_exe},
+    {Field::VM_LIB, "VmLib", &Info::vm_lib},          {Field::VM_PTE, "VmPTE", &Info::vm_pte},
+    {Field::VM_SWAP, "VmSwap", &Info::vm_swap}};
 
-using FieldTable = oops::FieldTable<Field, Info, MemberPtrVar>;
-static constexpr FieldTable FIELD_TABLE{
-    ENTRY("VmPeak", VM_PEAK, vm_peak, PARSE, FORMAT),       ENTRY("VmSize", VM_SIZE, vm_size, PARSE, FORMAT),
-    ENTRY("VmLck", VM_LCK, vm_lck, PARSE, FORMAT),          ENTRY("VmPin", VM_PIN, vm_pin, PARSE, FORMAT),
-    ENTRY("VmHWM", VM_HWM, vm_hwm, PARSE, FORMAT),          ENTRY("VmRSS", VM_RSS, vm_rss, PARSE, FORMAT),
-    ENTRY("RssAnon", RSS_ANON, rss_anon, PARSE, FORMAT),    ENTRY("RssFile", RSS_FILE, rss_file, PARSE, FORMAT),
-    ENTRY("RssShmem", RSS_SHMEM, rss_shmem, PARSE, FORMAT), ENTRY("VmData", VM_DATA, vm_data, PARSE, FORMAT),
-    ENTRY("VmStk", VM_STK, vm_stk, PARSE, FORMAT),          ENTRY("VmExe", VM_EXE, vm_exe, PARSE, FORMAT),
-    ENTRY("VmLib", VM_LIB, vm_lib, PARSE, FORMAT),          ENTRY("VmPTE", VM_PTE, vm_pte, PARSE, FORMAT),
-    ENTRY("VmSwap", VM_SWAP, vm_swap, PARSE, FORMAT)};
-
-static_assert(CheckFieldTableMapping(FIELD_TABLE));
+Info Get(std::ifstream &ifs, const FieldMask &field_mask) {
+    auto [info, parsed]{parser.Parse(ifs, field_mask)};
+    info.parsed = std::move(parsed);
+    return info;
+}
 
 Info Get() { return Get(~FieldMask{}); }
 Info Get(int pid) { return Get(pid, ~FieldMask{}); }
 
 Info Get(const FieldMask &field_mask) {
     std::ifstream ifs("/proc/self/status");
-    return GetPairedInfo(ifs, FIELD_TABLE, field_mask);
+    return Get(ifs, field_mask);
 }
 
 Info Get(int pid, const FieldMask &field_mask) {
     std::ifstream ifs(std::string{"/proc/"} + std::to_string(pid) + "/status");
-    return GetPairedInfo(ifs, FIELD_TABLE, field_mask);
+    return Get(ifs, field_mask);
 }
 
 std::ostream &operator<<(std::ostream &out, const Info &info) {
-    OutputPairedInfo(out, info, FIELD_TABLE, FieldMask{});
+    parser.Format(out, info, info.parsed);
     return out;
 }
 } // namespace status
@@ -203,33 +186,26 @@ namespace numa_maps {
 } // namespace proc
 
 namespace lscpu {
-using MemberPtrVar = std::variant<
-    std::optional<std::size_t> Info::*, std::optional<std::string> Info::*,
-    std::optional<double> Info::*>; // 定义所有类型的成员变量指针
-constexpr auto PARSE{oops::Parse<Info, MemberPtrVar>};
-constexpr auto FORMAT{oops::Format<Info, MemberPtrVar>};
-
-using FieldTable = oops::FieldTable<Field, Info, MemberPtrVar>;
-static constexpr FieldTable FIELD_TABLE{
-    ENTRY("Architecture", ARCHITECTURE, architecture, PARSE, FORMAT),
-    ENTRY("CPU(s)", CPUS, cpus, PARSE, FORMAT),
-    ENTRY("Thread(s) per core", THREADS_PER_CORE, threads_per_core, PARSE, FORMAT),
-    ENTRY("Core(s) per socket", CORES_PER_SOCKET, cores_per_socket, PARSE, FORMAT),
-    ENTRY("Socket(s)", SOCKETS, sockets, PARSE, FORMAT),
-    ENTRY("NUMA node(s)", NUMA_NODES, numa_nodes, PARSE, FORMAT),
-    ENTRY("Model name", MODEL_NAME, model_name, PARSE, FORMAT),
-    ENTRY("CPU MHz", CPU_MHZ, cpu_mhz, PARSE, FORMAT)};
-
-static_assert(CheckFieldTableMapping(FIELD_TABLE));
+KeyValueParser<Info, Field, std::tuple<std::size_t, double, std::string>> parser{
+    {Field::ARCHITECTURE, "Architecture", &Info::architecture},
+    {Field::CPUS, "CPU(s)", &Info::cpus},
+    {Field::THREADS_PER_CORE, "Thread(s) per core", &Info::threads_per_core},
+    {Field::CORES_PER_SOCKET, "Core(s) per socket", &Info::cores_per_socket},
+    {Field::SOCKETS, "Socket(s)", &Info::sockets},
+    {Field::NUMA_NODES, "NUMA node(s)", &Info::numa_nodes},
+    {Field::MODEL_NAME, "Model name", &Info::model_name},
+    {Field::CPU_MHZ, "CPU MHz", &Info::cpu_mhz}};
 
 Info Get() { return Get(~FieldMask{}); }
 Info Get(const FieldMask &field_mask) {
     std::istringstream iss{GetCmdOutput("lscpu")};
-    return GetPairedInfo(iss, FIELD_TABLE, field_mask);
+    auto [info, parsed]{parser.Parse(iss, field_mask)};
+    info.parsed = std::move(parsed);
+    return info;
 }
 
 std::ostream &operator<<(std::ostream &out, const Info &info) {
-    OutputPairedInfo(out, info, FIELD_TABLE, FieldMask{});
+    parser.Format(out, info, info.parsed);
     return out;
 }
 } // namespace lscpu

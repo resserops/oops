@@ -64,9 +64,9 @@ Memory Memory::Get() {
     using namespace proc;
     Memory memory;
     auto status_info{status::Get(status::Field::VM_RSS | status::Field::VM_HWM | status::Field::VM_SWAP)};
-    memory.rss = *status_info.vm_rss;
-    memory.hwm = *status_info.vm_hwm;
-    memory.swap = *status_info.vm_swap;
+    memory.rss = status_info.vm_rss;
+    memory.hwm = status_info.vm_hwm;
+    memory.swap = status_info.vm_swap;
     return memory;
 }
 
