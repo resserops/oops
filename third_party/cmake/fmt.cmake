@@ -5,3 +5,6 @@ if(NOT EXISTS "${lib_dir}/CMakeLists.txt")
 endif()
 
 add_subdirectory(${lib_dir})
+if(TARGET fmt)
+    set_target_properties(fmt PROPERTIES POSITION_INDEPENDENT_CODE ON)
+endif()

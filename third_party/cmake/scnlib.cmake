@@ -6,5 +6,6 @@ endif()
 
 add_subdirectory(${lib_dir})
 if(TARGET scn)
+    set_target_properties(scn PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_compile_options(scn PRIVATE -w)  # 静默屏蔽-Werror报错
 endif()

@@ -4,7 +4,7 @@ if(NOT EXISTS "${lib_dir}/CMakeLists.txt")
     execute_process(COMMAND git submodule update --init --recursive ${lib_dir})
 endif()
 
-add_subdirectory(${lib_dir})
-if(TARGET Glob)
-    target_compile_options(Glob PRIVATE -w)  # 静默屏蔽-Werror报错
-endif()
+# 使用header only版本替代构建版本，避免glob cmake依赖的cpm环境
+add_library(glob INTERFACE)
+target_include_directories(glob INTERFACE ${lib_dir}/single_include)
+target_compile_options(glob INTERFACE -w)
