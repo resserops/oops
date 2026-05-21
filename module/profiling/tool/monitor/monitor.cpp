@@ -521,7 +521,7 @@ void ParseArgs(int argc, char *argv[]) {
                 ENABLED_METRIC_GROUP.Set(MetricGroup::CPU);
                 matched = true;
             }
-            if ((token == "all" || token == "memory" || token == "m") &&
+            if ((token == "all" || token == "memory" || token == "mem" || token == "m") &&
                 !ENABLED_METRIC_GROUP.Test(MetricGroup::MEMORY)) {
                 ENABLED_METRIC_GROUP.Set(MetricGroup::MEMORY);
                 matched = true;

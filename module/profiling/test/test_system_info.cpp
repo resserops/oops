@@ -88,6 +88,11 @@ TEST(ProfilingSystemInfo, Lscpu) {
     std::cout << lscpu::Get();
 }
 
+TEST(ProfilingSystemInfo, Smaps) {
+    using namespace oops;
+    std::cout << proc::maps::Get();
+}
+
 TEST(ProfilingSystemInfo, SmapsRollup) {
     using namespace oops;
     std::cout << proc::smaps_rollup::Get();

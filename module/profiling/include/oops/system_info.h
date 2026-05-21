@@ -15,24 +15,12 @@
 namespace oops {
 namespace proc {
 namespace status {
+// clang-format off
 enum class Field : uint8_t {
-    VM_PEAK,
-    VM_SIZE,
-    VM_LCK,
-    VM_PIN,
-    VM_HWM,
-    VM_RSS,
-    RSS_ANON,
-    RSS_FILE,
-    RSS_SHMEM,
-    VM_DATA,
-    VM_STK,
-    VM_EXE,
-    VM_LIB,
-    VM_PTE,
-    VM_SWAP,
-    COUNT
+    VM_PEAK,   VM_SIZE,   VM_LCK,    VM_PIN,    VM_HWM,    VM_RSS,    RSS_ANON,  RSS_FILE,  RSS_SHMEM, VM_DATA,   
+    VM_STK,    VM_EXE,    VM_LIB,    VM_PTE,    VM_SWAP,   COUNT
 };
+// clang-format on
 using FieldMask = EnumBitset<Field>;
 using oops::operator|; // 支持Field和FieldMask或运算ADL
 
@@ -61,8 +49,8 @@ struct Info {
 [[nodiscard]] Info Get(pid_t pid, const FieldMask &field_mask);
 std::ostream &operator<<(std::ostream &out, const Info &info);
 } // namespace status
-
-// vma数据结构，maps/smaps/smaps共用
+namespace maps {
+// vma数据结构，maps, smaps, smaps_rollup共用
 struct Vma {
     std::size_t Size() const { return static_cast<std::size_t>(address.start - address.end); }
     std::uint32_t MajorDev() const;
@@ -86,37 +74,28 @@ struct Vma {
     std::string pathname{};
 };
 
+struct Info {
+    std::vector<Vma> vma_table;
+};
+
+[[nodiscard]] Info Get();
+[[nodiscard]] Info Get(pid_t pid);
+std::ostream &operator<<(std::ostream &out, const Info &info);
+} // namespace maps
 namespace smaps_rollup {
 // Since Linux
+// clang-format off
 enum class Field : uint8_t {
-    VMA,
-    RSS,
-    PSS,
-    PSS_DIRTY,
-    PSS_ANON,
-    PSS_FILE,
-    PSS_SHMEM,
-    SHARED_CLEAN,
-    SHARED_DIRTY,
-    PRIVATE_CLEAN,
-    PRIVATE_DIRTY,
-    REFERENCED,
-    ANONYMOUS,
-    KSM,
-    LAZY_FREE,
-    ANON_HUGE_PAGES,
-    SHMEM_PMD_MAPPED,
-    FILE_PMD_MAPPED,
-    SHARED_HUGETLB,
-    PRIVATE_HUGETLB,
-    SWAP,
-    SWAP_PSS,
-    LOCKED,
-    COUNT
+    VMA,              RSS,              PSS,              PSS_DIRTY,        PSS_ANON,         PSS_FILE,         
+    PSS_SHMEM,        SHARED_CLEAN,     SHARED_DIRTY,     PRIVATE_CLEAN,    PRIVATE_DIRTY,    REFERENCED,       
+    ANONYMOUS,        KSM,              LAZY_FREE,        ANON_HUGE_PAGES,  SHMEM_PMD_MAPPED, FILE_PMD_MAPPED,  
+    SHARED_HUGETLB,   PRIVATE_HUGETLB,  SWAP,             SWAP_PSS,         LOCKED,           COUNT
 };
+// clang-format on
 using FieldMask = EnumBitset<Field>;
 using oops::operator|; // 支持Field和FieldMask或运算ADL
 
+using Vma = maps::Vma;
 struct Info {
     Vma vma;
     // 核心内存统计
@@ -188,17 +167,12 @@ struct Info {
 } // namespace proc
 
 namespace lscpu {
+// clang-format off
 enum class Field {
-    ARCHITECTURE,
-    CPUS,
-    THREADS_PER_CORE,
-    CORES_PER_SOCKET,
-    SOCKETS,
-    NUMA_NODES,
-    MODEL_NAME,
-    CPU_MHZ,
-    COUNT
+    ARCHITECTURE,     CPUS,             THREADS_PER_CORE, CORES_PER_SOCKET, SOCKETS,          NUMA_NODES,       
+    MODEL_NAME,       CPU_MHZ,          COUNT
 };
+// clang-format on
 using FieldMask = EnumBitset<Field>;
 using oops::operator|; // 支持Field和FieldMask或运算ADL
 
