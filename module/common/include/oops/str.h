@@ -174,6 +174,7 @@ constexpr std::string_view Strip(std::string_view s, std::string_view chars = SP
 
 std::string Elide(std::string_view s, std::size_t n);
 
+// 后续替换成lexcial_cast
 template <typename T>
 ::std::string ToStr(const T &t) {
     ::std::ostringstream oss;

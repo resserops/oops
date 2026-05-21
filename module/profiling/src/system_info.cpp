@@ -43,7 +43,6 @@ std::string GetCmdOutput(const std::string &cmd) {
 class IStreamBacktraceGuard {
 public:
     explicit IStreamBacktraceGuard(std::istream &is) : is_{is}, pos_{is.tellg()} {}
-
     IStreamBacktraceGuard(const IStreamBacktraceGuard &) = delete;
     IStreamBacktraceGuard &operator=(const IStreamBacktraceGuard &) = delete;
 
@@ -61,23 +60,33 @@ private:
     std::streampos pos_;
 };
 
-::std::string ToStr(const KiBs<std::size_t> &t) { return std::to_string(t.Count()); }
+template <typename T>
+bool ParseField(std::string_view s, T &t, std::string_view ctx = "{}") {
+    auto scan_res{scn::scan<T>(s, ctx)};
+    if (scan_res) {
+        t = scan_res->value();
+    }
+    return bool{scan_res};
+}
 
-template <>
-KiBs<std::size_t> FromStr(const ::std::string_view sv) {
-    ::std::istringstream iss{::std::string{sv}}; // TODO(resserops): 优化自定义stream
-    std::size_t t{};
-    iss >> t;
-    return KiBs<std::size_t>{t};
+template <typename R, typename P>
+bool ParseField(std::string_view s, Storage<R, P> &storage, std::string_view ctx = "{}") {
+    R r{};
+    auto res{ParseField<R>(s, r, ctx)};
+    storage = Storage<R, P>{r};
+    return res;
 }
 
 template <typename T>
-bool FromSv(std::string_view sv, T &value) {
-    value = FromStr<T>(sv);
-    return true;
+std::string FormatField(const T &t, std::string_view ctx = "{}") {
+    return fmt::format(ctx, t);
 }
 
-// 新版KeyValueParser
+template <typename R, typename P>
+std::string FormatField(const Storage<R, P> &storage, std::string_view ctx = "{}") {
+    return FormatField(storage.Count(), ctx);
+}
+
 template <typename S, typename F, typename TL>
 class KeyValueParser {
     template <typename T>
@@ -97,8 +106,8 @@ public:
         MemberPtrVar member_ptr_var;
         std::string suffix{};
         // 后续如果没有特殊规则的解析，移除注册固化函数，或者使用fmt格式化字符串
-        bool (*parse)(std::string_view, MemberPtrVar, Struct &){ParseField};
-        std::string (*format)(MemberPtrVar, const Struct &){FormatField};
+        bool (*parse)(std::string_view, MemberPtrVar, Struct &){ParseMemberPtrVar};
+        std::string (*format)(MemberPtrVar, const Struct &){FormatMemberPtrVar};
     };
 
     explicit KeyValueParser(std::initializer_list<Entry> entries) : field_table_{entries} {}
@@ -109,18 +118,18 @@ public:
     KeyValueParser(std::initializer_list<Entry> entries, std::string delim, std::function<bool(std::string_view)> stop)
         : field_table_{entries}, delim_{std::move(delim)}, stop_{std::move(stop)} {}
 
-    static bool ParseField(std::string_view value, MemberPtrVar member_ptr_var, Struct &obj) {
-        auto f = [value, &obj](auto member_ptr) {
+    static bool ParseMemberPtrVar(std::string_view s, MemberPtrVar member_ptr_var, Struct &obj) {
+        auto f = [s, &obj](auto member_ptr) {
             auto &member{obj.*member_ptr};
-            return FromSv(value, member);
+            return ParseField(s, member, "{}");
         };
         return std::visit(f, member_ptr_var);
     }
 
-    static std::string FormatField(MemberPtrVar member_ptr_var, const Struct &obj) {
+    static std::string FormatMemberPtrVar(MemberPtrVar member_ptr_var, const Struct &obj) {
         auto f = [&obj](auto member_ptr) -> std::string {
             auto &member{obj.*member_ptr};
-            return ToStr(member);
+            return FormatField(member, "{}");
         };
         return std::visit(f, member_ptr_var);
     }
@@ -136,7 +145,7 @@ public:
             if (stop_(line)) {
                 break;
             }
-            guard.Commit(); // 本行已经确定是KeyValuePair，提交本行
+            guard.Commit(); // 本行已经确定是kv-pair，提交本行
 
             if (pos == line.npos) {
                 continue;
@@ -196,7 +205,7 @@ private:
 
 namespace proc {
 namespace status {
-KeyValueParser<Info, Field, TypeList<std::size_t>> parser{
+KeyValueParser<Info, Field, TypeList<std::size_t>> kvparser{
     {Field::VM_PEAK, "VmPeak", &Info::vm_peak},       {Field::VM_SIZE, "VmSize", &Info::vm_size},
     {Field::VM_LCK, "VmLck", &Info::vm_lck},          {Field::VM_PIN, "VmPin", &Info::vm_pin},
     {Field::VM_HWM, "VmHWM", &Info::vm_hwm},          {Field::VM_RSS, "VmRSS", &Info::vm_rss},
@@ -208,7 +217,7 @@ KeyValueParser<Info, Field, TypeList<std::size_t>> parser{
 
 Info Get(std::istream &is, const FieldMask &field_mask) {
     Info info;
-    info.parsed |= parser.Parse(is, info, field_mask);
+    info.parsed |= kvparser.Parse(is, info, field_mask);
     return info;
 }
 
@@ -221,16 +230,16 @@ Info Get(const FieldMask &field_mask) {
 }
 
 Info Get(pid_t pid, const FieldMask &field_mask) {
-    std::ifstream ifs(std::string{"/proc/"} + std::to_string(pid) + "/status");
+    std::ifstream ifs(fmt::format("/proc/{}/status", pid));
     return Get(ifs, field_mask);
 }
 
-std::ostream &operator<<(std::ostream &out, const Info &info) {
-    parser.Format(out, info, info.parsed);
-    return out;
+std::ostream &operator<<(std::ostream &os, const Info &info) {
+    kvparser.Format(os, info, info.parsed);
+    return os;
 }
 } // namespace status
-
+namespace maps {
 std::uint32_t Vma::MajorDev() const { return major(dev); }
 std::uint32_t Vma::MinorDev() const { return minor(dev); }
 
@@ -293,8 +302,33 @@ void FormatVma(std::ostream &os, const Vma &vma) {
     os << "\n";
 }
 
+Info Get(std::istream &is) {
+    Info info;
+    while (auto res{maps::ParseVma(is)}) {
+        info.vma_table.push_back(std::move(res.vma));
+    }
+    return info;
+}
+
+Info Get() {
+    std::ifstream ifs("/proc/self/maps");
+    return Get(ifs);
+}
+
+Info Get(pid_t pid) {
+    std::ifstream ifs(fmt::format("/proc/{}/maps", pid));
+    return Get(ifs);
+}
+
+std::ostream &operator<<(std::ostream &os, const Info &info) {
+    for (const auto &vma : info.vma_table) {
+        FormatVma(os, vma);
+    }
+    return os;
+}
+} // namespace maps
 namespace smaps_rollup {
-KeyValueParser<Info, Field, TypeList<KiBs<std::size_t>>> parser{
+KeyValueParser<Info, Field, TypeList<KiBs<std::size_t>>> kvparser{
     {Field::RSS, "Rss", &Info::rss},
     {Field::PSS, "Pss", &Info::pss},
     {Field::PSS_DIRTY, "Pss_Dirty", &Info::pss_dirty},
@@ -321,7 +355,7 @@ KeyValueParser<Info, Field, TypeList<KiBs<std::size_t>>> parser{
 Info Get(std::istream &is, const FieldMask &field_mask) {
     Info info;
     if (field_mask.Test(Field::VMA)) {
-        auto res{ParseVma(is)};
+        auto res{maps::ParseVma(is)};
         if (res) {
             info.vma = std::move(res.vma);
             info.parsed.Set(Field::VMA);
@@ -330,7 +364,7 @@ Info Get(std::istream &is, const FieldMask &field_mask) {
         // 跳过VMA行
         is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     }
-    info.parsed |= parser.Parse(is, info, field_mask);
+    info.parsed |= kvparser.Parse(is, info, field_mask);
     return info;
 }
 
@@ -343,15 +377,15 @@ Info Get(const FieldMask &field_mask) {
 }
 
 Info Get(pid_t pid, const FieldMask &field_mask) {
-    std::ifstream ifs(std::string{"/proc/"} + std::to_string(pid) + "/smaps_rollup");
+    std::ifstream ifs(fmt::format("/proc/{}/smaps_rollup", pid));
     return Get(ifs, field_mask);
 }
 
 std::ostream &operator<<(std::ostream &os, const Info &info) {
     if (info.parsed.Test(Field::VMA)) {
-        FormatVma(os, info.vma);
+        maps::FormatVma(os, info.vma);
     }
-    parser.Format(os, info, info.parsed);
+    kvparser.Format(os, info, info.parsed);
     return os;
 }
 } // namespace smaps_rollup
@@ -359,9 +393,8 @@ namespace numa_maps {
 // TODO(resserops): 补充实现
 } // namespace numa_maps
 } // namespace proc
-
 namespace lscpu {
-KeyValueParser<Info, Field, TypeList<std::size_t, double, std::string>> parser{
+KeyValueParser<Info, Field, TypeList<std::size_t, double, std::string>> kvparser{
     {Field::ARCHITECTURE, "Architecture", &Info::architecture},
     {Field::CPUS, "CPU(s)", &Info::cpus},
     {Field::THREADS_PER_CORE, "Thread(s) per core", &Info::threads_per_core},
@@ -375,13 +408,13 @@ Info Get() { return Get(~FieldMask{}); }
 Info Get(const FieldMask &field_mask) {
     Info info;
     std::istringstream iss{GetCmdOutput("lscpu")};
-    info.parsed |= parser.Parse(iss, info, field_mask);
+    info.parsed |= kvparser.Parse(iss, info, field_mask);
     return info;
 }
 
-std::ostream &operator<<(std::ostream &out, const Info &info) {
-    parser.Format(out, info, info.parsed);
-    return out;
+std::ostream &operator<<(std::ostream &os, const Info &info) {
+    kvparser.Format(os, info, info.parsed);
+    return os;
 }
 } // namespace lscpu
 } // namespace oops
