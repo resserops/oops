@@ -17,15 +17,15 @@ namespace proc {
 namespace status {
 // clang-format off
 enum class Field : uint8_t {
-    VM_PEAK,   VM_SIZE,   VM_LCK,    VM_PIN,    VM_HWM,    VM_RSS,    RSS_ANON,  RSS_FILE,  RSS_SHMEM, VM_DATA,   
+    VM_PEAK,   VM_SIZE,   VM_LCK,    VM_PIN,    VM_HWM,    VM_RSS,    RSS_ANON,  RSS_FILE,  RSS_SHMEM, VM_DATA,
     VM_STK,    VM_EXE,    VM_LIB,    VM_PTE,    VM_SWAP,   COUNT
 };
 // clang-format on
 using FieldMask = EnumBitset<Field>;
 using oops::operator|; // 支持Field和FieldMask或运算ADL
 
-struct Info {
-    std::size_t vm_peak{}; // 当前只解析内存部分
+struct Info { // 仅支持部分字段
+    std::size_t vm_peak{};
     std::size_t vm_size{};
     std::size_t vm_lck{};
     std::size_t vm_pin{};
@@ -40,6 +40,7 @@ struct Info {
     std::size_t vm_lib{};
     std::size_t vm_pte{};
     std::size_t vm_swap{};
+
     FieldMask parsed;
 };
 
@@ -47,7 +48,7 @@ struct Info {
 [[nodiscard]] Info Get(pid_t pid);
 [[nodiscard]] Info Get(const FieldMask &field_mask);
 [[nodiscard]] Info Get(pid_t pid, const FieldMask &field_mask);
-std::ostream &operator<<(std::ostream &out, const Info &info);
+std::ostream &operator<<(std::ostream &os, const Info &info);
 } // namespace status
 namespace maps {
 // vma数据结构，maps, smaps, smaps_rollup共用
@@ -56,12 +57,12 @@ struct Vma {
     std::uint32_t MajorDev() const;
     std::uint32_t MinorDev() const;
 
-    struct {
+    struct Address {
         std::uintptr_t start{};
         std::uintptr_t end{};
     } address{};
 
-    struct {
+    struct Perms {
         bool r : 1;
         bool w : 1;
         bool x : 1;
@@ -80,15 +81,113 @@ struct Info {
 
 [[nodiscard]] Info Get();
 [[nodiscard]] Info Get(pid_t pid);
-std::ostream &operator<<(std::ostream &out, const Info &info);
+std::ostream &operator<<(std::ostream &os, const Info &info);
 } // namespace maps
+namespace smaps {
+// clang-format off
+enum class Field : uint8_t {
+    VMA,              SIZE,             KERNEL_PAGE_SIZE, MMU_PAGE_SIZE,    RSS,              PSS,
+    PSS_DIRTY,        SHARED_CLEAN,     SHARED_DIRTY,     PRIVATE_CLEAN,    PRIVATE_DIRTY,    REFERENCED,
+    ANONYMOUS,        KSM,              LAZY_FREE,        ANON_HUGE_PAGES,  SHMEM_PMD_MAPPED, FILE_PMD_MAPPED,
+    SHARED_HUGETLB,   PRIVATE_HUGETLB,  SWAP,             SWAP_PSS,         LOCKED,           THP_ELIGIBLE,
+    VM_FLAGS,         COUNT
+};
+// clang-format on
+using FieldMask = EnumBitset<Field>;
+using oops::operator|;
+
+using Vma = maps::Vma;
+struct VmaExt {
+    Vma vma;
+    // 核心内存统计
+    KiBs<std::size_t> size{};
+    KiBs<std::size_t> kernel_page_size{};
+    KiBs<std::size_t> mmu_page_size{};
+    KiBs<std::size_t> rss{};
+    KiBs<std::size_t> pss{};
+    KiBs<std::size_t> pss_dirty{};
+
+    // 页面共享状态统计
+    KiBs<std::size_t> shared_clean{};
+    KiBs<std::size_t> shared_dirty{};
+    KiBs<std::size_t> private_clean{};
+    KiBs<std::size_t> private_dirty{};
+
+    // 引用与内核统计
+    KiBs<std::size_t> referenced{};
+    KiBs<std::size_t> anonymous{};
+    KiBs<std::size_t> ksm{};
+    KiBs<std::size_t> lazy_free{};
+
+    // 大页统计
+    KiBs<std::size_t> anon_huge_pages{};
+    KiBs<std::size_t> shmem_pmd_mapped{};
+    KiBs<std::size_t> file_pmd_mapped{};
+    KiBs<std::size_t> shared_hugetlb{};
+    KiBs<std::size_t> private_hugetlb{};
+
+    // 交换区与锁定统计
+    KiBs<std::size_t> swap{};
+    KiBs<std::size_t> swap_pss{};
+    KiBs<std::size_t> locked{};
+
+    // 标志统计
+    bool thp_eligible{};
+    struct VmFlags {
+        bool rd : 1;
+        bool wr : 1;
+        bool ex : 1;
+        bool sh : 1;
+        bool mr : 1;
+        bool mw : 1;
+        bool me : 1;
+        bool ms : 1;
+        bool gd : 1;
+        bool pf : 1;
+        bool dw : 1;
+        bool lo : 1;
+        bool io : 1;
+        bool sr : 1;
+        bool rr : 1;
+        bool dc : 1;
+        bool de : 1;
+        bool ac : 1;
+        bool nr : 1;
+        bool ht : 1;
+        bool sf : 1;
+        bool nl : 1;
+        bool ar : 1;
+        bool wf : 1;
+        bool dd : 1;
+        bool sd : 1;
+        bool mm : 1;
+        bool hg : 1;
+        bool nh : 1;
+        bool mg : 1;
+        bool um : 1;
+        bool uw : 1;
+    } vm_flags{};
+
+    FieldMask parsed;
+};
+
+struct Info {
+    std::vector<VmaExt> vma_table;
+};
+
+[[nodiscard]] Info Get();
+[[nodiscard]] Info Get(pid_t pid);
+[[nodiscard]] Info Get(const FieldMask &field_mask);
+[[nodiscard]] Info Get(pid_t pid, const FieldMask &field_mask);
+std::ostream &operator<<(std::ostream &os, const Info &info);
+} // namespace smaps
 namespace smaps_rollup {
 // Since Linux
 // clang-format off
 enum class Field : uint8_t {
-    VMA,              RSS,              PSS,              PSS_DIRTY,        PSS_ANON,         PSS_FILE,         
-    PSS_SHMEM,        SHARED_CLEAN,     SHARED_DIRTY,     PRIVATE_CLEAN,    PRIVATE_DIRTY,    REFERENCED,       
-    ANONYMOUS,        KSM,              LAZY_FREE,        ANON_HUGE_PAGES,  SHMEM_PMD_MAPPED, FILE_PMD_MAPPED,  
+    VMA,              RSS,              PSS,              PSS_DIRTY,        PSS_ANON,         PSS_FILE,
+    PSS_SHMEM,        SHARED_CLEAN,     SHARED_DIRTY,     PRIVATE_CLEAN,    PRIVATE_DIRTY,    REFERENCED,
+    ANONYMOUS,        KSM,              LAZY_FREE,        ANON_HUGE_PAGES,  SHMEM_PMD_MAPPED, FILE_PMD_MAPPED,
     SHARED_HUGETLB,   PRIVATE_HUGETLB,  SWAP,             SWAP_PSS,         LOCKED,           COUNT
 };
 // clang-format on
@@ -137,7 +236,7 @@ struct Info {
 [[nodiscard]] Info Get(pid_t pid);
 [[nodiscard]] Info Get(const FieldMask &field_mask);
 [[nodiscard]] Info Get(pid_t pid, const FieldMask &field_mask);
-std::ostream &operator<<(std::ostream &out, const Info &info);
+std::ostream &operator<<(std::ostream &os, const Info &info);
 } // namespace smaps_rollup
 namespace numa_maps {
 // Since Linux 2.6.14
@@ -169,14 +268,14 @@ struct Info {
 namespace lscpu {
 // clang-format off
 enum class Field {
-    ARCHITECTURE,     CPUS,             THREADS_PER_CORE, CORES_PER_SOCKET, SOCKETS,          NUMA_NODES,       
+    ARCHITECTURE,     CPUS,             THREADS_PER_CORE, CORES_PER_SOCKET, SOCKETS,          NUMA_NODES,
     MODEL_NAME,       CPU_MHZ,          COUNT
 };
 // clang-format on
 using FieldMask = EnumBitset<Field>;
-using oops::operator|; // 支持Field和FieldMask或运算ADL
+using oops::operator|;
 
-struct Info {
+struct Info { // 仅支持部分字段
     std::string architecture{};
     std::size_t cpus{};
     std::size_t threads_per_core{};
@@ -190,6 +289,6 @@ struct Info {
 
 [[nodiscard]] Info Get();
 [[nodiscard]] Info Get(const FieldMask &field_mask);
-::std::ostream &operator<<(::std::ostream &out, const Info &info);
+::std::ostream &operator<<(::std::ostream &os, const Info &info);
 } // namespace lscpu
 } // namespace oops
