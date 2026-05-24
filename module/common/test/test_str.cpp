@@ -2,6 +2,7 @@
 
 #include "oops/str.h"
 #include "oops/view.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 template <auto Value>
@@ -10,6 +11,8 @@ constexpr auto CONSTEXPR_VALUE{Value};
 #define CEXPR(expr) (CONSTEXPR_VALUE<expr>) // expr must be eval at compile-time
 
 #define TEST_STATIC(suite, case) constexpr void TestStatic_##suite_##case ()
+
+using namespace testing;
 
 TEST(CommonStr, IsUpper) {
     using namespace oops;
@@ -216,26 +219,18 @@ TEST(CommonStr, SplitBack) {
 }
 
 TEST(CommonStr, Split) {
-    using namespace oops;
-    std::vector<std::string_view> res;
-    Split("abc defg hi", std::back_inserter(res));
-    EXPECT_EQ(res, (std::vector<std::string_view>{"abc", "defg", "hi"}));
-
-    res.clear();
-    EXPECT_TRUE(res.empty());
-    Split(" abc   defg hi  ", std::back_inserter(res));
-    EXPECT_EQ(res, (std::vector<std::string_view>{"abc", "defg", "hi"}));
-
-    res.clear();
-    Split("\nabc \t defg\fhi  ", std::back_inserter(res));
-    EXPECT_EQ(res, (std::vector<std::string_view>{"abc", "defg", "hi"}));
+    EXPECT_THAT(oops::Split(""), ElementsAre());
+    EXPECT_THAT(oops::Split(" "), ElementsAre());
+    EXPECT_THAT(oops::Split("   "), ElementsAre());
+    EXPECT_THAT(oops::Split("abc"), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split("abc defg hi"), ElementsAre("abc", "defg", "hi"));
+    EXPECT_THAT(oops::Split(" abc   defg hi  "), ElementsAre("abc", "defg", "hi"));
+    EXPECT_THAT(oops::Split("\nabc \t defg\fhi  "), ElementsAre("abc", "defg", "hi"));
 }
 
 TEST(CommonStr, SplitDelim) {
     using namespace oops;
-    std::vector<std::string_view> res;
-    Split("abc:defg:hi", ":", std::back_inserter(res));
-    EXPECT_EQ(res, (std::vector<std::string_view>{"abc", "defg", "hi"}));
+    EXPECT_THAT(Split("abc:defg:hi", ":"), ElementsAre("abc", "defg", "hi"));
 }
 
 TEST(CommonStr, StartsWith) {

@@ -323,17 +323,17 @@ void ParseRawData(std::istream &is, RawDataEntry &entry) {
         }
 
         case Step::HEADER_ROW: {
-            auto tokens{oops::Split<std::vector<std::string_view>>(line, ", ")};
-            metric_num = tokens.size();
+            auto tokens{oops::Split(line, ", ")};
             for (auto token : tokens) {
                 entry.metric_data_table.emplace_back(oops::Strip(token));
             }
+            metric_num = entry.metric_data_table.size();
             step = Step::DATA_ROW;
             break;
         }
 
         case Step::DATA_ROW: {
-            auto tokens{oops::Split<std::vector<std::string_view>>(line, ", ")};
+            auto tokens{oops::Split(line, ", ").To<std::vector>()};
             if (metric_num == 0) {
                 throw std::runtime_error("bad metric num");
             }
@@ -513,7 +513,7 @@ void ParseArgs(int argc, char *argv[]) {
 
         // --metric
         std::string metric{measure.get<std::string>("--metric")};
-        auto metric_tokens{oops::Split<std::vector<std::string_view>>(metric, ',')};
+        auto metric_tokens{oops::Split(metric, ',')};
 
         for (auto token : metric_tokens) {
             bool matched{false};
@@ -540,14 +540,14 @@ void ParseArgs(int argc, char *argv[]) {
 
         // input
         std::string input{report.get<std::string>("input")};
-        auto input_tokens{oops::Split<std::vector<std::string_view>>(input, ',')};
+        auto input_tokens{oops::Split(input, ',')};
         for (auto token : input_tokens) {
             ARGS.report.input.emplace_back(token);
         }
 
         // --dir
         std::string dir{report.get<std::string>("--dir")};
-        auto tokens{oops::Split<std::vector<std::string_view>>(dir, ',')};
+        auto tokens{oops::Split(dir, ',')};
         for (auto token : tokens) {
             fs::path dir_path{token};
             if (!fs::is_directory(dir_path)) {
