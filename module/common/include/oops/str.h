@@ -10,86 +10,101 @@ constexpr std::string_view SPACE{" \t\n\r\v\f"};
 std::string Repeat(const std::string &str, std::size_t n);
 std::string SplitBack(const std::string &str, const std::string &delim);
 
-template <typename Iter>
-void Split(std::string_view s, std::string_view delim, bool skip_empty, Iter iter) {
-    std::size_t begin{0}; // 每个分割字串的头部
-    while (begin < s.size()) {
-        std::size_t end{s.find(delim, begin)};
-        if (end == std::string::npos) {
-            break;
+class SplitView {
+public:
+    class Iterator {
+    public:
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = std::string_view;
+        using difference_type = std::ptrdiff_t;
+        using pointer = const std::string_view *;
+        using reference = const std::string_view &;
+
+        Iterator() = default;
+        Iterator(std::string_view s, std::string_view delim) : s_{s}, delim_{delim} { NextToken(); }
+        Iterator(std::string_view s, std::string_view delim, bool any_of_delims, bool skip_empty)
+            : s_{s}, delim_{delim}, any_of_delims_{any_of_delims}, skip_empty_{skip_empty} {
+            NextToken();
         }
-        if (!skip_empty || end > begin) {
-            // TODO(resserops): 支持基于lexical_cast的转换
-            *(iter++) = s.substr(begin, end - begin);
+
+        std::string_view operator*() const noexcept { return token_; }
+        Iterator &operator++() {
+            NextToken();
+            return *this;
         }
-        begin = end + delim.size();
-    }
-    if (!skip_empty || s.size() > begin) {
-        *(iter++) = s.substr(begin);
-    }
-}
 
-template <typename Iter>
-void Split(std::string_view s, std::string_view delim, Iter iter) {
-    Split(s, delim, false, iter);
-}
-
-template <typename Iter>
-void Split(std::string_view s, const char *delim, Iter iter) {
-    Split(s, delim, false, iter);
-}
-
-template <typename Iter>
-void Split(std::string_view s, char delim, Iter iter) {
-    Split(s, std::string_view(&delim, 1), false, iter);
-}
-
-template <typename Iter>
-void SplitMultiDelim(std::string_view s, std::string_view delims, bool skip_empty, Iter iter) {
-    std::size_t begin{0};
-    while (begin < s.size()) {
-        std::size_t end{s.find_first_of(delims, begin)};
-        if (end == std::string::npos) {
-            break;
+        bool operator==(const Iterator &other) const {
+            // 短路和迭代器的比较
+            if ((s_.data() == nullptr) ^ (other.s_.data() == nullptr)) {
+                return false; // 一个迭代器是尾迭代器，另一个不是
+            }
+            if (s_.data() == nullptr) {
+                return true; // 均是尾迭代器
+            }
+            // 非尾迭代器的严格匹配
+            return (s_.data() == other.s_.data()) && (s_.size() == other.s_.size()) &&
+                   (token_.data() == other.token_.data()) && (token_.size() == other.token_.size()) &&
+                   (delim_ == other.delim_) && (any_of_delims_ == other.any_of_delims_) &&
+                   (skip_empty_ == other.skip_empty_);
         }
-        if (!skip_empty || end > begin) {
-            *(iter++) = s.substr(begin, end - begin);
-        }
-        begin = end + 1;
+        bool operator!=(const Iterator &other) const { return !operator==(other); }
+
+    private:
+        void NextToken();
+
+        std::string_view s_;
+        std::string_view token_;
+        const std::string_view delim_;
+        const bool any_of_delims_{};
+        const bool skip_empty_{};
+    };
+
+    using value_type = std::string_view;
+    using size_type = std::size_t;
+    using difference_type = std::ptrdiff_t;
+    using const_iterator = Iterator;
+    using iterator = Iterator;
+
+    SplitView(std::string_view s) : s_{s}, delim_{SPACE}, any_of_delims_{true}, skip_empty_{true} {}
+    SplitView(std::string_view s, char delim) : s_{s}, delim_(&c_, 1), c_{delim} {}
+    SplitView(std::string_view s, std::string_view delim) : s_{s}, delim_{delim} {}
+
+    Iterator begin() const { return Iterator(s_, delim_, any_of_delims_, skip_empty_); }
+    Iterator end() const { return Iterator(); }
+
+    std::string_view Front() const { return *begin(); }
+
+    SplitView &AnyOfDelims(bool b = true) {
+        any_of_delims_ = b;
+        return *this;
     }
-    if (!skip_empty || s.size() > begin) {
-        *(iter++) = s.substr(begin);
+
+    SplitView &SkipEmpty(bool b = true) {
+        skip_empty_ = b;
+        return *this;
     }
-}
 
-template <typename Iter>
-void SplitMultiDelim(std::string_view s, std::string_view delims, Iter iter) {
-    SplitMultiDelim(s, delims, false, iter);
-}
+    template <typename T>
+    T To() const {
+        return T(begin(), end());
+    }
 
-template <typename Iter>
-void Split(std::string_view s, bool skip_empty, Iter iter) {
-    return SplitMultiDelim(s, SPACE, skip_empty, iter);
-}
+    template <template <typename...> typename TT>
+    auto To() const {
+        return To<TT<std::string_view>>();
+    }
 
-template <typename Iter>
-void Split(std::string_view s, Iter iter) {
-    return SplitMultiDelim(s, SPACE, true, iter);
-}
+private:
+    const std::string_view s_;
+    const std::string_view delim_;
+    bool any_of_delims_{};
+    bool skip_empty_{};
+    const char c_{}; // 支持单字符delim
+};
 
-template <typename Container, typename... Args>
-Container Split(Args &&...args) {
-    Container container;
-    Split(std::forward<Args>(args)..., std::back_inserter(container));
-    return container;
-}
-
-template <typename Container, typename... Args>
-Container SplitMultiDelim(Args &&...args) {
-    Container container;
-    SplitMultiDelim(std::forward<Args>(args)..., std::back_inserter(container));
-    return container;
-}
+inline SplitView Split(std::string_view s) { return SplitView(s); }
+inline SplitView Split(std::string_view s, char delim) { return SplitView(s, delim); }
+inline SplitView Split(std::string_view s, std::string_view delim) { return SplitView(s, delim); }
 
 constexpr bool IsUpper(char c) noexcept { return 'A' <= c && c <= 'Z'; }
 constexpr bool IsLower(char c) noexcept { return 'a' <= c && c <= 'z'; }

@@ -53,7 +53,7 @@ AnyCoo ReadMatrixMarket(std::istream &is) {
         throw std::runtime_error("bad istream");
     }
 
-    auto tokens{Split<std::vector<std::string_view>>(buf)};
+    auto tokens{Split(buf).To<std::vector>()};
     if (tokens.size() != 5) {
         throw std::runtime_error(std::string{"unexpected header tokens number: "} + std::to_string(tokens.size()));
     }

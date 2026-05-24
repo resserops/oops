@@ -91,7 +91,7 @@ constexpr VmFlagsEntry VM_FLAGS_TABLE[]{ENTRY(rd), ENTRY(wr), ENTRY(ex), ENTRY(s
 template <>
 bool ParseField(std::string_view s, proc::smaps::VmaExt::VmFlags &vm_flags, std::string_view) {
     bool failed{false};
-    for (auto token : Split<std::vector<std::string_view>>(s)) {
+    for (auto token : Split(s)) {
         auto it{std::find_if(
             std::begin(VM_FLAGS_TABLE), std::end(VM_FLAGS_TABLE), [token](auto &entry) { return entry.key == token; })};
         if (it != std::end(VM_FLAGS_TABLE)) {
