@@ -80,7 +80,50 @@ class RangeView {
     static_assert(std::is_same_v<T, Stop> || !std::is_integral_v<Stop>);
 
 public:
-    class Iterator;
+    class Iterator {
+    public:
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = T;
+        using difference_type = std::ptrdiff_t;
+        using pointer = const T *;
+        using reference = const T &;
+
+        constexpr explicit Iterator(T t, T step) : t_{t}, step_{step} {}
+        constexpr T operator*() const noexcept { return t_; }
+
+        constexpr Iterator &operator++() noexcept {
+            auto res{AddOverflow(t_, step_)};
+            t_ = res.value;
+            overflow_ = res.overflow;
+            return *this;
+        }
+
+        constexpr Iterator operator++(int) noexcept {
+            auto iter{*this};
+            ++(*this);
+            return iter;
+        }
+
+        bool Overflow() const { return overflow_; }
+        T Step() const { return step_; }
+
+        constexpr bool operator==(Stop stop) const {
+            if constexpr (std::is_integral_v<Stop>) {
+                if (step_ > 0) {
+                    return stop <= t_;
+                }
+                return stop >= t_;
+            } else {
+                return stop == (*this);
+            }
+        }
+        constexpr bool operator!=(Stop stop) const { return !operator==(stop); }
+
+    private:
+        T t_, step_;
+        bool overflow_{false};
+    };
+
     constexpr RangeView(Stop stop) : stop_{stop} {}
     constexpr RangeView(T start, Stop stop, T step = 1) : start_{start}, stop_{stop}, step_{step} {
         if (step == 0) {
@@ -95,51 +138,6 @@ private:
     T start_{0};
     Stop stop_;
     T step_{1};
-};
-
-template <typename T, typename Stop>
-class RangeView<T, Stop>::Iterator {
-public:
-    using iterator_category = std::forward_iterator_tag;
-    using value_type = T;
-    using difference_type = std::ptrdiff_t;
-    using pointer = const T *;
-    using reference = const T &;
-
-    constexpr explicit Iterator(T t, T step) : t_{t}, step_{step} {}
-    constexpr T operator*() const noexcept { return t_; }
-
-    constexpr Iterator &operator++() noexcept {
-        auto res{AddOverflow(t_, step_)};
-        t_ = res.value;
-        overflow_ = res.overflow;
-        return *this;
-    }
-
-    constexpr Iterator operator++(int) noexcept {
-        auto iter{*this};
-        ++(*this);
-        return iter;
-    }
-
-    bool Overflow() const { return overflow_; }
-    T Step() const { return step_; }
-
-    constexpr bool operator==(Stop stop) const {
-        if constexpr (std::is_integral_v<Stop>) {
-            if (step_ > 0) {
-                return stop <= t_;
-            }
-            return stop >= t_;
-        } else {
-            return stop == (*this);
-        }
-    }
-    constexpr bool operator!=(Stop stop) const { return !operator==(stop); }
-
-protected:
-    T t_, step_;
-    bool overflow_{false};
 };
 
 template <typename T, typename Stop>

@@ -261,7 +261,6 @@ void SearchValidInput() {
 
 template <typename T>
 auto ParseValueAfterPrefix(std::string_view s, std::string_view prefix, T &value) noexcept {
-    s = oops::Strip(s);
     struct {
         explicit operator bool() const noexcept { return matched && parsed; }
         std::string_view remain;
@@ -269,12 +268,13 @@ auto ParseValueAfterPrefix(std::string_view s, std::string_view prefix, T &value
         bool parsed{false};
     } res;
 
+    s = oops::Strip(s);
     auto pos{s.find(prefix)};
     if (pos == std::string_view::npos) {
         return res;
     }
     s.remove_prefix(pos + prefix.size());
-    s = oops::Strip(s); // 使用StripLeft优化
+    s = oops::StripLeft(s);
     res.matched = true;
     res.remain = s;
 

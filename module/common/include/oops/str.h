@@ -7,8 +7,22 @@
 
 namespace oops {
 constexpr std::string_view SPACE{" \t\n\r\v\f"};
-std::string Repeat(const std::string &str, std::size_t n);
-std::string SplitBack(const std::string &str, const std::string &delim);
+
+// 字符操作
+constexpr bool IsUpper(char c) noexcept { return 'A' <= c && c <= 'Z'; }
+constexpr bool IsLower(char c) noexcept { return 'a' <= c && c <= 'z'; }
+constexpr bool IsAlpha(char c) noexcept { return IsUpper(c) || IsLower(c); }
+constexpr bool IsDigit(char c) noexcept { return '0' <= c && c <= '9'; }
+constexpr bool IsAlnum(char c) noexcept { return IsAlpha(c) || IsDigit(c); }
+constexpr bool IsSpace(char c) noexcept {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f';
+}
+
+constexpr char ToUpper(char c) noexcept { return IsLower(c) ? (c - 'a' + 'A') : c; }
+constexpr char ToLower(char c) noexcept { return IsUpper(c) ? (c - 'A' + 'a') : c; }
+
+// 字符串读操作
+std::string SplitBack(const std::string &str, const std::string &delim); // SplitView实现逆序迭代器后合并到Split中
 
 class SplitView {
 public:
@@ -73,6 +87,7 @@ public:
     Iterator end() const { return Iterator(); }
 
     std::string_view Front() const { return *begin(); }
+    bool Empty() const { return begin() == end(); }
 
     SplitView &AnyOfDelims(bool b = true) {
         any_of_delims_ = b;
@@ -106,54 +121,26 @@ inline SplitView Split(std::string_view s) { return SplitView(s); }
 inline SplitView Split(std::string_view s, char delim) { return SplitView(s, delim); }
 inline SplitView Split(std::string_view s, std::string_view delim) { return SplitView(s, delim); }
 
-constexpr bool IsUpper(char c) noexcept { return 'A' <= c && c <= 'Z'; }
-constexpr bool IsLower(char c) noexcept { return 'a' <= c && c <= 'z'; }
-constexpr bool IsAlpha(char c) noexcept { return IsUpper(c) || IsLower(c); }
-constexpr bool IsDigit(char c) noexcept { return '0' <= c && c <= '9'; }
-constexpr bool IsAlnum(char c) noexcept { return IsAlpha(c) || IsDigit(c); }
-constexpr bool IsSpace(char c) noexcept {
-    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f';
+constexpr std::string_view StripLeft(std::string_view s, std::string_view chars = SPACE) {
+    std::size_t pos{s.find_first_not_of(chars)};
+    if (pos == std::string_view::npos) {
+        pos = s.size();
+    }
+    s.remove_prefix(pos);
+    return s;
 }
 
-constexpr char ToUpper(char c) noexcept { return IsLower(c) ? (c - 'a' + 'A') : c; }
-constexpr char ToLower(char c) noexcept { return IsUpper(c) ? (c - 'A' + 'a') : c; }
-
-std::string ToLower(std::string_view s) noexcept;
-
-constexpr bool Equal(std::string_view lhs, std::string_view rhs) noexcept { return lhs == rhs; }
-
-template <typename CharEqual>
-constexpr bool Equal(std::string_view lhs, std::string_view rhs, CharEqual &&char_equal) noexcept {
-    if (lhs.size() != rhs.size()) {
-        return false;
+constexpr std::string_view StripRight(std::string_view s, std::string_view chars = SPACE) {
+    std::size_t pos{s.find_last_not_of(chars) + 1};
+    if (pos == std::string_view::npos) {
+        pos = s.size();
     }
-    for (std::size_t i{0}; i < lhs.size(); ++i) {
-        if (!char_equal(lhs[i], rhs[i])) {
-            return false;
-        }
-    }
-    return true;
+    s.remove_suffix(s.size() - pos);
+    return s;
 }
 
-template <typename CharEqual, typename Filter>
-constexpr bool Equal(std::string_view lhs, std::string_view rhs, CharEqual &&char_equal, Filter &&filter) noexcept {
-    for (std::size_t i{0}, j{0}; true; ++i, ++j) {
-        while (i < lhs.size() && !filter(lhs[i])) {
-            ++i;
-        }
-        while (j < rhs.size() && !filter(rhs[j])) {
-            ++j;
-        }
-        if (i == lhs.size() && j == rhs.size()) {
-            return true;
-        }
-        if (i == lhs.size() || j == rhs.size()) {
-            return false;
-        }
-        if (!char_equal(lhs[i], rhs[j])) {
-            return false;
-        }
-    }
+constexpr std::string_view Strip(std::string_view s, std::string_view chars = SPACE) {
+    return StripLeft(StripRight(s, chars), chars);
 }
 
 constexpr bool StartsWith(std::string_view s, std::string_view prefix) {
@@ -176,20 +163,50 @@ constexpr bool EndsWith(std::string_view s, std::string_view suffix) {
     return s.substr(s.size() - suffix.size()) == suffix;
 }
 
-constexpr std::string_view Strip(std::string_view s, std::string_view chars = SPACE) {
-    if (s.empty()) {
-        return s;
+constexpr bool Equal(std::string_view lhs, std::string_view rhs) noexcept { return lhs == rhs; }
+
+template <typename CharEqual>
+constexpr bool Equal(std::string_view lhs, std::string_view rhs, CharEqual &&char_equal) noexcept {
+    if (lhs.size() != rhs.size()) {
+        return false;
     }
-    std::size_t pos{s.find_first_not_of(chars)};
-    if (pos == std::string_view::npos) {
-        return {};
+    for (std::size_t i{0}; i < lhs.size(); ++i) {
+        if (!char_equal(lhs[i], rhs[i])) {
+            return false;
+        }
     }
-    return s.substr(pos, s.find_last_not_of(chars) - pos + 1);
+    return true;
 }
 
+template <typename CharEqual, typename Filter>
+constexpr bool Equal(std::string_view lhs, std::string_view rhs, CharEqual &&char_equal, Filter &&filter) noexcept {
+    for (std::size_t i{0}, j{0};; ++i, ++j) {
+        while ((i < lhs.size()) && (!filter(lhs[i]))) {
+            ++i;
+        }
+        while ((j < rhs.size()) && (!filter(rhs[j]))) {
+            ++j;
+        }
+        if ((i == lhs.size()) ^ (j == rhs.size())) {
+            return false; // 一个查找到末尾，另一个没有
+        }
+        if (i == lhs.size()) {
+            return true;
+        }
+        if (!char_equal(lhs[i], rhs[j])) {
+            return false;
+        }
+    }
+}
+
+// 字符串写操作
+std::string ToLower(std::string_view s) noexcept;
+std::string ToUpper(std::string_view s) noexcept;
+
+std::string Repeat(const std::string &str, std::size_t n);
 std::string Elide(std::string_view s, std::size_t n);
 
-// 后续替换成lexcial_cast
+// 后续使用lexcial_cast替代
 template <typename T>
 ::std::string ToStr(const T &t) {
     ::std::ostringstream oss;
