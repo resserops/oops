@@ -71,15 +71,15 @@ std::string FormatField(const Storage<R, P> &storage, std::string_view ctx = "{}
 
 // proc::smaps::VmaExt::VmFlags特化
 struct VmFlagsEntry {
+    using VmFlags = proc::smaps::VmaExt::VmFlags;
     std::string_view key;
-    void (*set)(proc::smaps::VmaExt::VmFlags &);
-    bool (*get)(const proc::smaps::VmaExt::VmFlags &);
+    void (*set)(VmFlags &);
+    bool (*get)(const VmFlags &);
 };
 
-#define ENTRY(flag)                                                      \
-    {                                                                    \
-        #flag, [](proc::smaps::VmaExt::VmFlags &f) { f.flag = true; },   \
-            [](const proc::smaps::VmaExt::VmFlags &f) { return f.flag; } \
+#define ENTRY(f)                                                       \
+    {                                                                  \
+        #f, [](auto &f) { f.rd = true; }, [](auto &f) { return f.rd; } \
     }
 constexpr VmFlagsEntry VM_FLAGS_TABLE[]{ENTRY(rd), ENTRY(wr), ENTRY(ex), ENTRY(sh), ENTRY(mr), ENTRY(mw), ENTRY(me),
                                         ENTRY(ms), ENTRY(gd), ENTRY(pf), ENTRY(dw), ENTRY(lo), ENTRY(io), ENTRY(sr),
@@ -106,7 +106,7 @@ bool ParseField(std::string_view s, proc::smaps::VmaExt::VmFlags &vm_flags, std:
 template <>
 std::string FormatField(const proc::smaps::VmaExt::VmFlags &vm_flags, std::string_view) {
     std::string s;
-    s.reserve(64);
+    s.reserve(64); // one cache line
     for (const auto &item : VM_FLAGS_TABLE) {
         if (item.get(vm_flags)) {
             s += item.key;
