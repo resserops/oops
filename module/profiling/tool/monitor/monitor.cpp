@@ -392,8 +392,8 @@ void PlotCpu() {
         }
     }
 
+    py::scoped_interpreter guard{}; // 必须放在try-catch块外侧，否则无法捕获py::error_already_set异常
     try {
-        py::scoped_interpreter guard{}; // 绘图函数仅执行单次
         auto plt{py::module_::import("matplotlib.pyplot")};
         auto subplots{plt.attr("subplots")(
             valid_idxs.size(), 1, py::arg("sharex") = true,
@@ -440,10 +440,7 @@ void PlotCpu() {
         plt.attr("xlabel")("Time (s)");
         plt.attr("tight_layout")();
         plt.attr("show")();
-    } catch (const py::error_already_set &e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        exit(1);
-    }
+    } catch (const py::error_already_set &e) { std::cerr << "Error: " << e.what() << std::endl; }
 }
 
 void Report() {

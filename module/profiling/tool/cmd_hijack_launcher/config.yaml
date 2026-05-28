@@ -1,0 +1,10 @@
+# launch (list(str)): 发射命令配置，每个字符串必须是可执行的shell命令，支持{}格式化
+#   {pid}:  命令pid
+#   {cmd}:  命令名称
+#   {timestamp}: 10位时间戳
+#   {Y}, {y}, {m}, {d}, {H}, {M}, {S}: 调起命令的日期时间
+launch:
+  - "while kill -0 {pid} 2>/dev/null; do ps -p {pid} -o pid,%cpu,%mem,stat,command; sleep 1; done"
+
+# screen_log_path (str): 发射命令屏幕输出日志保存路径，支持{}格式化
+screen_log_path: "."
