@@ -478,6 +478,7 @@ void ParseArgs(int argc, char *argv[]) {
     report.add_argument("-d", "--dir")
         .help("the root directory to search for files matching the 'input' pattern")
         .default_value(".");
+    report.add_argument("--show").action("store_true")
     program.add_subparser(report);
 
     try {

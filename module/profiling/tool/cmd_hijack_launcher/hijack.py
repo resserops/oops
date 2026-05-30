@@ -15,76 +15,47 @@ def remove_entry(entry):
 def main():
     wrapper_name = "cmd_hijack_launcher.py"
     setup_script_name = "setup.sh"
-    critical_files = (wrapper_name, setup_script_name, "config.yaml")
 
     # 参数解析
     program = argparse.ArgumentParser(description="deploy symlinks for command hijacking to the specified prefix directory")
-    program.add_argument("-p", "--prefix", default=os.path.expanduser(os.path.join("~", ".local", "bin", os.path.splitext(wrapper_name)[0])), help=f"installation prefix directory")
     program.add_argument("-c", "--clean", action="store_true", help=f"clean up obsolete hijack symlinks in the prefix directory that are not specified in the current command list")
-    program.add_argument("-f", "--force", action="store_true", help=f"force deployment by overwriting existing files, symlinks, or directories if conflicts occur")
-    program.add_argument("commands", nargs="*", help="commands to hijack. must be executable in the system PATH")
+    program.add_argument("targets", nargs="*", help="targets to hijack. must be commands in the system PATH or executable file paths")
     args = program.parse_args()
 
     # 打印基础信息
     script_dir = os.path.dirname(os.path.realpath(__file__))
-    prefix_dir = os.path.abspath(args.prefix)
-
     print(f"Script dir: {script_dir}")
-    print(f"Prefix dir: {prefix_dir}\n")
+    
+    cmds = []
+    exes = []
+    for target in args.targets:
+        if os.path.dirname(target):
+            exes.append(target)
+        else:
+            if target == wrapper_name:
+                print(f"Warning: skipping self-hijack of command '{target}'", file=sys.stderr)
+                continue
+            if target == "python" or target == "python3":
+                print(f"Warning: skipping hijack command '{target}' to prevent infinite recursion loop", file=sys.stderr)
+                continue
+            if not shutil.which(target):
+                print(f"Warning: command '{target}' not found in system PATH. skipping hijack", file=sys.stderr)
+                continue
 
-    # 创建prefix（安装路径）
-    if os.path.exists(prefix_dir) or os.path.islink(prefix_dir):
-        if not os.path.isdir(prefix_dir):
-            if args.force:
-                try:
-                    os.remove(prefix_dir)
-                    os.makedirs(prefix_dir, exist_ok=True)
-                except OSError as e:
-                    print(f"Error: failed to force replace prefix directory '{prefix_dir}'. (code: {e.errno}, {e.lower()})", file=sys.stderr)
-                    sys.exit(1)
-            else:
-                print(f"Error: prefix path exists but is not a directory '{prefix_dir}'. use -f to overwrite", file=sys.stderr)
-                sys.exit(1)
-    else:
-        try:
-            os.makedirs(prefix_dir, exist_ok=True)
-        except OSError as e:
-            print(f"Error: cannot create directory '{prefix_dir}'. (code: {e.errno}, {e.lower()})", file=sys.stderr)
-            sys.exit(1)
+            # 不允许劫持shell内建命令和关键字
+            res = subprocess.run(["bash", "-c", f"type -t {target}"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+            cmd_type = res.stdout.strip()
 
-    # 复制关键脚本到prefix
-    def copy_to_prefix(f):
-        src = os.path.join(script_dir, f)
-        # 检查src存在
-        if not os.path.exists(src):
-            print(f"Error: critical file '{f}' not found, hijack failed", file=sys.stderr)
-            sys.exit(1)
+            if cmd_type == "keyword":
+                print(f"Warning: skipping hijack command '{target}' because it is a shell keyword", file=sys.stderr)
+                continue
+            if cmd_type == "builtin":
+                print(f"Warning: skipping hijack command '{target}' because it is a shell builtin command", file=sys.stderr)
+                continue
 
-        dst = os.path.join(prefix_dir, f)
-        if os.path.exists(dst) or os.path.islink(dst):
-            if os.path.isfile(dst) and filecmp.cmp(src, dst):
-                # 如果已存在文件相同，直接跳过
-                return
-            if args.force:
-                try:
-                    remove_entry(dst)
-                except OSError as e:
-                    print(f"Error: failed to force replace critical file '{f}'. (code: {e.errno}, {e.lower()})", file=sys.stderr)
-                    return
-            else:
-                print(f"Warning: critical file '{f}' already exists. use -f to overwrite", file=sys.stderr)
-                return
+            cmds.append(target)
 
-        try:
-            shutil.copy2(src, dst) # 使用copy2保留原始文件权限
-        except OSError as e:
-            print(f"Error: failed to copy critical file. (code: {e.errno}, {e.lower()})", file=sys.stderr)
-            return
-
-    for f in critical_files:
-        copy_to_prefix(f)
-
-    # 清理未在commands中的软链接
+    # 清理命令
     exists_cmds = []
     link_target = os.path.join(".", wrapper_name)
 
@@ -103,37 +74,30 @@ def main():
     except OSError as e:
         print(f"Error: failed to scan prefix directory for cleanup. (code: {e.errno}, {e.lower()})", file=sys.stderr)
 
-    # 设置软链接
-    succ_cmds = []
-    for cmd in args.commands:
-        if cmd == wrapper_name:
-            print(f"Warning: skipping self-hijack of '{cmd}'", file=sys.stderr)
-            continue
 
-        if cmd == "python" or cmd == "python3":
-            print(f"Warning: skipping hijack command '{cmd}' to prevent infinite recursion loop", file=sys.stderr)
-            continue
+    # 劫持命令
+    if len(cmds) > 0:
+        # 创建cmd_dir
+        cmd_dir = os.path.join(script_dir, "cmds")
+        if os.path.islink(cmd_dir):
+            os.unlink(cmd_dir)
+        elif os.path.isfile(cmd_dir):
+            os.remove(cmd_dir)
 
-        if not shutil.which(cmd):
-            print(f"Warning: command '{cmd}' not found in system PATH. skipping hijack", file=sys.stderr)
-            continue
+        os.makedirs(cmd_dir, exist_ok=True)
 
-        try:
-            # 不允许劫持shell内建命令和关键字
-            res = subprocess.run(["bash", "-c", f"type -t {cmd}"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-            cmd_type = res.stdout.strip()
+        # 生成劫持软连接
+        link_target = os.path.join("..", wrapper_name)
+        for cmd in cmds:    
+            link_name = os.path.join(cmd_dir, cmd)
+            if os.path.islink(link_name) and os.readlink(link_name) == link_target:
+    
+    # 劫持具体文件
 
-            if cmd_type == "keyword":
-                print(f"Warning: skipping hijack command '{cmd}' because it is a shell keyword", file=sys.stderr)
-                continue
-            if cmd_type == "builtin":
-                print(f"Warning: skipping hijack command '{cmd}' because it is a shell builtin command", file=sys.stderr)
-                continue
-        except OSError as e:
-            print(f"Error: failed to check command type for '{cmd}'. (code: {e.errno}, {e.lower()})", file=sys.stderr)
 
-        link_name = os.path.join(prefix_dir, cmd)
-        if os.path.islink(link_name) and os.readlink(link_name) == link_target:
+
+        
+        
             # 已经存在且正确的链接可以忽略
             exists_cmds.append(cmd)
             continue
