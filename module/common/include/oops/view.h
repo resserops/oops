@@ -140,13 +140,14 @@ private:
     T step_{1};
 };
 
-template <typename T, typename Stop>
+template <typename T, typename Stop, std::enable_if_t<!std::is_integral_v<Stop>, int> = 0>
 constexpr auto Range(T start, Stop stop, T step = 1) {
-    if constexpr (std::is_integral_v<Stop>) {
-        return RangeView<T>(start, stop, step);
-    } else {
-        return RangeView<T, Stop>(start, stop, step);
-    }
+    return RangeView<T, Stop>(start, stop, step);
+}
+
+template <typename T>
+constexpr auto Range(T start, T stop, T step = 1) {
+    return RangeView<T>(start, stop, step);
 }
 
 template <typename T, typename Stop, std::enable_if_t<!std::is_integral_v<Stop>, int> = 0>

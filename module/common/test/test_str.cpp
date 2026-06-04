@@ -5,207 +5,185 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-template <auto Value>
-constexpr auto CONSTEXPR_VALUE{Value};
-
-#define CEXPR(expr) (CONSTEXPR_VALUE<expr>) // expr must be eval at compile-time
-
 #define TEST_STATIC(suite, case) constexpr void TestStatic_##suite_##case ()
-
 using namespace testing;
 
-TEST(CommonStr, IsUpper) {
-    using namespace oops;
-    EXPECT_TRUE(CEXPR(IsUpper('A')));
-    EXPECT_TRUE(CEXPR(IsUpper('Z')));
+static std::string FmtChar(char c) {
+    int c_int{static_cast<unsigned char>(c)};
+    std::stringstream ss;
+    ss << "Char: 0x" << std::hex << c_int;
+    if (std::isprint(c_int)) {
+        ss << " '" << c << "'";
+    }
+    return ss.str();
+}
 
-    EXPECT_FALSE(CEXPR(IsUpper('a')));
-    EXPECT_FALSE(CEXPR(IsUpper('z')));
-    EXPECT_FALSE(CEXPR(IsUpper('@')));
-    EXPECT_FALSE(CEXPR(IsUpper('[')));
+TEST_STATIC(CommonStr, IsUpper) {
+    static_assert(oops::IsUpper('A'));
+    static_assert(oops::IsUpper('Z'));
 
-    EXPECT_FALSE(CEXPR(IsUpper('0')));
-    EXPECT_FALSE(CEXPR(IsUpper(' ')));
-    EXPECT_FALSE(CEXPR(IsUpper('\0')));
-    EXPECT_FALSE(CEXPR(IsUpper('\n')));
+    static_assert(!oops::IsUpper('a'));
+    static_assert(!oops::IsUpper('z'));
+    static_assert(!oops::IsUpper('@'));
+    static_assert(!oops::IsUpper('['));
+
+    static_assert(!oops::IsUpper('0'));
+    static_assert(!oops::IsUpper(' '));
+    static_assert(!oops::IsUpper('\0'));
+    static_assert(!oops::IsUpper('\n'));
 }
 
 TEST(CommonStr, IsUpperSameAsStd) {
     for (char c : oops::view::IntegerSet<char>) {
         int c_int{static_cast<unsigned char>(c)};
-        // TODO(resserops): 后续16进制通过formatter控制
-        EXPECT_EQ(oops::IsUpper(c), std::isupper(c_int) != 0)
-            << "Char: 0x" << std::hex << c_int << (std::isprint(c_int) ? std::string{" '"} + c + "'" : "");
+        EXPECT_EQ(oops::IsUpper(c), std::isupper(c_int) != 0) << FmtChar(c);
     }
 }
 
-TEST(CommonStr, IsLower) {
-    using namespace oops;
-    EXPECT_TRUE(CEXPR(IsLower('a')));
-    EXPECT_TRUE(CEXPR(IsLower('z')));
+TEST_STATIC(CommonStr, IsLower) {
+    static_assert(oops::IsLower('a'));
+    static_assert(oops::IsLower('z'));
 
-    EXPECT_FALSE(CEXPR(IsLower('A')));
-    EXPECT_FALSE(CEXPR(IsLower('Z')));
-    EXPECT_FALSE(CEXPR(IsLower('`')));
-    EXPECT_FALSE(CEXPR(IsLower('{')));
+    static_assert(!oops::IsLower('A'));
+    static_assert(!oops::IsLower('Z'));
+    static_assert(!oops::IsLower('`'));
+    static_assert(!oops::IsLower('{'));
 
-    EXPECT_FALSE(CEXPR(IsLower('0')));
-    EXPECT_FALSE(CEXPR(IsLower(' ')));
-    EXPECT_FALSE(CEXPR(IsLower('\0')));
-    EXPECT_FALSE(CEXPR(IsLower('\n')));
+    static_assert(!oops::IsLower('0'));
+    static_assert(!oops::IsLower(' '));
+    static_assert(!oops::IsLower('\0'));
+    static_assert(!oops::IsLower('\n'));
 }
 
 TEST(CommonStr, IsLowerSameAsStd) {
     for (char c : oops::view::IntegerSet<char>) {
         int c_int{static_cast<unsigned char>(c)};
-        // TODO(resserops): 后续16进制通过formatter控制
-        EXPECT_EQ(oops::IsLower(c), std::islower(c_int) != 0)
-            << "Char: 0x" << std::hex << c_int << (std::isprint(c_int) ? std::string{" '"} + c + "'" : "");
+        EXPECT_EQ(oops::IsLower(c), std::islower(c_int) != 0) << FmtChar(c);
     }
 }
 
-TEST(CommonStr, IsAlpha) {
-    using namespace oops;
-    EXPECT_TRUE(CEXPR(IsAlpha('A')));
-    EXPECT_TRUE(CEXPR(IsAlpha('Z')));
-    EXPECT_TRUE(CEXPR(IsAlpha('a')));
-    EXPECT_TRUE(CEXPR(IsAlpha('z')));
+TEST_STATIC(CommonStr, IsAlpha) {
+    static_assert(oops::IsAlpha('A'));
+    static_assert(oops::IsAlpha('Z'));
+    static_assert(oops::IsAlpha('a'));
+    static_assert(oops::IsAlpha('z'));
 
-    EXPECT_FALSE(CEXPR(IsAlpha('@')));
-    EXPECT_FALSE(CEXPR(IsAlpha('[')));
-    EXPECT_FALSE(CEXPR(IsAlpha('`')));
-    EXPECT_FALSE(CEXPR(IsAlpha('{')));
+    static_assert(!oops::IsAlpha('@'));
+    static_assert(!oops::IsAlpha('['));
+    static_assert(!oops::IsAlpha('`'));
+    static_assert(!oops::IsAlpha('{'));
 
-    EXPECT_FALSE(CEXPR(IsAlpha('0')));
-    EXPECT_FALSE(CEXPR(IsAlpha(' ')));
-    EXPECT_FALSE(CEXPR(IsAlpha('\0')));
-    EXPECT_FALSE(CEXPR(IsAlpha('\n')));
+    static_assert(!oops::IsAlpha('0'));
+    static_assert(!oops::IsAlpha(' '));
+    static_assert(!oops::IsAlpha('\0'));
+    static_assert(!oops::IsAlpha('\n'));
 }
 
 TEST(CommonStr, IsAlphaSameAsStd) {
     for (char c : oops::view::IntegerSet<char>) {
         int c_int{static_cast<unsigned char>(c)};
-        // TODO(resserops): 后续16进制通过formatter控制
-        EXPECT_EQ(oops::IsAlpha(c), std::isalpha(c_int) != 0)
-            << "Char: 0x" << std::hex << c_int << (std::isprint(c_int) ? std::string{" '"} + c + "'" : "");
+        EXPECT_EQ(oops::IsAlpha(c), std::isalpha(c_int) != 0) << FmtChar(c);
     }
 }
 
-TEST(CommonStr, IsDigit) {
-    using namespace oops;
-    EXPECT_TRUE(CEXPR(IsDigit('0')));
-    EXPECT_TRUE(CEXPR(IsDigit('9')));
+TEST_STATIC(CommonStr, IsDigit) {
+    static_assert(oops::IsDigit('0'));
+    static_assert(oops::IsDigit('9'));
 
-    EXPECT_FALSE(CEXPR(IsDigit('/')));
-    EXPECT_FALSE(CEXPR(IsDigit(':')));
+    static_assert(!oops::IsDigit('/'));
+    static_assert(!oops::IsDigit(':'));
 
-    EXPECT_FALSE(CEXPR(IsDigit('A')));
-    EXPECT_FALSE(CEXPR(IsDigit('a')));
-    EXPECT_FALSE(CEXPR(IsDigit(' ')));
-    EXPECT_FALSE(CEXPR(IsDigit('\0')));
-    EXPECT_FALSE(CEXPR(IsDigit('\n')));
+    static_assert(!oops::IsDigit('A'));
+    static_assert(!oops::IsDigit('a'));
+    static_assert(!oops::IsDigit(' '));
+    static_assert(!oops::IsDigit('\0'));
+    static_assert(!oops::IsDigit('\n'));
 }
 
 TEST(CommonStr, IsDigitSameAsStd) {
     for (char c : oops::view::IntegerSet<char>) {
         int c_int{static_cast<unsigned char>(c)};
-        // TODO(resserops): 后续16进制通过formatter控制
-        EXPECT_EQ(oops::IsDigit(c), std::isdigit(c_int) != 0)
-            << "Char: 0x" << std::hex << c_int << (std::isprint(c_int) ? std::string{" '"} + c + "'" : "");
+        EXPECT_EQ(oops::IsDigit(c), std::isdigit(c_int) != 0) << FmtChar(c);
     }
 }
 
-TEST(CommonStr, IsAlnum) {
-    using namespace oops;
-    EXPECT_TRUE(CEXPR(IsAlnum('A')));
-    EXPECT_TRUE(CEXPR(IsAlnum('Z')));
-    EXPECT_TRUE(CEXPR(IsAlnum('a')));
-    EXPECT_TRUE(CEXPR(IsAlnum('z')));
-    EXPECT_TRUE(CEXPR(IsAlnum('0')));
-    EXPECT_TRUE(CEXPR(IsAlnum('9')));
+TEST_STATIC(CommonStr, IsAlnum) {
+    static_assert(oops::IsAlnum('A'));
+    static_assert(oops::IsAlnum('Z'));
+    static_assert(oops::IsAlnum('a'));
+    static_assert(oops::IsAlnum('z'));
+    static_assert(oops::IsAlnum('0'));
+    static_assert(oops::IsAlnum('9'));
 
-    EXPECT_FALSE(CEXPR(IsAlnum('@')));
-    EXPECT_FALSE(CEXPR(IsAlnum('[')));
-    EXPECT_FALSE(CEXPR(IsAlnum('`')));
-    EXPECT_FALSE(CEXPR(IsAlnum('{')));
-    EXPECT_FALSE(CEXPR(IsAlnum('/')));
-    EXPECT_FALSE(CEXPR(IsAlnum(':')));
+    static_assert(!oops::IsAlnum('@'));
+    static_assert(!oops::IsAlnum('['));
+    static_assert(!oops::IsAlnum('`'));
+    static_assert(!oops::IsAlnum('{'));
+    static_assert(!oops::IsAlnum('/'));
+    static_assert(!oops::IsAlnum(':'));
 
-    EXPECT_FALSE(CEXPR(IsAlnum(' ')));
-    EXPECT_FALSE(CEXPR(IsAlnum('\0')));
-    EXPECT_FALSE(CEXPR(IsAlnum('\n')));
+    static_assert(!oops::IsAlnum(' '));
+    static_assert(!oops::IsAlnum('\0'));
+    static_assert(!oops::IsAlnum('\n'));
 }
 
 TEST(CommonStr, IsAlnumSameAsStd) {
-    std::size_t count{0};
     for (char c : oops::view::IntegerSet<char>) {
         int c_int{static_cast<unsigned char>(c)};
-        // TODO(resserops): 后续16进制通过formatter控制
-        EXPECT_EQ(oops::IsAlnum(c), std::isalnum(c_int) != 0)
-            << "Char: 0x" << std::hex << c_int << (std::isprint(c_int) ? std::string{" '"} + c + "'" : "");
-        ++count;
+        EXPECT_EQ(oops::IsAlnum(c), std::isalnum(c_int) != 0) << FmtChar(c);
     }
-    EXPECT_EQ(count, 1ull << __CHAR_BIT__);
 }
 
-TEST(CommonStr, ToLowerConstexpr) {
-    using namespace oops;
-    EXPECT_EQ(CEXPR(ToLower('A')), 'a');
-    EXPECT_EQ(CEXPR(ToLower('Z')), 'z');
+TEST_STATIC(CommonStr, ToLower) {
+    static_assert(oops::ToLower('A') == 'a');
+    static_assert(oops::ToLower('Z') == 'z');
 
-    EXPECT_EQ(CEXPR(ToLower('a')), 'a');
-    EXPECT_EQ(CEXPR(ToLower('z')), 'z');
-    EXPECT_EQ(CEXPR(ToLower('@')), '@');
-    EXPECT_EQ(CEXPR(ToLower('[')), '[');
+    static_assert(oops::ToLower('a') == 'a');
+    static_assert(oops::ToLower('z') == 'z');
+    static_assert(oops::ToLower('@') == '@');
+    static_assert(oops::ToLower('[') == '[');
 
-    EXPECT_EQ(CEXPR(ToLower('0')), '0');
-    EXPECT_EQ(CEXPR(ToLower(' ')), ' ');
-    EXPECT_EQ(CEXPR(ToLower('\0')), '\0');
-    EXPECT_EQ(CEXPR(ToLower('\n')), '\n');
+    static_assert(oops::ToLower('0') == '0');
+    static_assert(oops::ToLower(' ') == ' ');
+    static_assert(oops::ToLower('\0') == '\0');
+    static_assert(oops::ToLower('\n') == '\n');
 }
 
 TEST(CommonStr, ToLowerSameAsStd) {
     for (char c : oops::view::IntegerSet<char>) {
         int c_int{static_cast<unsigned char>(c)};
-        // TODO(resserops): 后续16进制通过formatter控制
-        EXPECT_EQ(oops::ToLower(c), static_cast<char>(std::tolower(c_int)))
-            << "Char: 0x" << std::hex << c_int << (std::isprint(c_int) ? std::string{" '"} + c + "'" : "");
+        EXPECT_EQ(oops::ToLower(c), static_cast<char>(std::tolower(c_int))) << FmtChar(c);
     }
 }
 
-TEST(CommonStr, ToUpper) {
-    using namespace oops;
-    EXPECT_EQ(CEXPR(ToLower('a')), 'a');
-    EXPECT_EQ(CEXPR(ToLower('z')), 'z');
+TEST_STATIC(CommonStr, ToUpper) {
+    static_assert(oops::ToUpper('a') == 'A');
+    static_assert(oops::ToUpper('z') == 'Z');
 
-    EXPECT_EQ(CEXPR(ToLower('A')), 'a');
-    EXPECT_EQ(CEXPR(ToLower('Z')), 'z');
-    EXPECT_EQ(CEXPR(ToLower('`')), '`');
-    EXPECT_EQ(CEXPR(ToLower('{')), '{');
+    static_assert(oops::ToUpper('A') == 'A');
+    static_assert(oops::ToUpper('Z') == 'Z');
+    static_assert(oops::ToUpper('`') == '`');
+    static_assert(oops::ToUpper('{') == '{');
 
-    EXPECT_EQ(CEXPR(ToLower('0')), '0');
-    EXPECT_EQ(CEXPR(ToLower(' ')), ' ');
-    EXPECT_EQ(CEXPR(ToLower('\0')), '\0');
-    EXPECT_EQ(CEXPR(ToLower('\n')), '\n');
+    static_assert(oops::ToUpper('0') == '0');
+    static_assert(oops::ToUpper(' ') == ' ');
+    static_assert(oops::ToUpper('\0') == '\0');
+    static_assert(oops::ToUpper('\n') == '\n');
 }
 
 TEST(CommonStr, ToUpperSameAsStd) {
     for (char c : oops::view::IntegerSet<char>) {
         int c_int{static_cast<unsigned char>(c)};
-        // TODO(resserops): 后续16进制通过formatter控制
-        EXPECT_EQ(oops::ToUpper(c), static_cast<char>(std::toupper(c_int)))
-            << "Char: 0x" << std::hex << c_int << (std::isprint(c_int) ? std::string{" '"} + c + "'" : "");
+        EXPECT_EQ(oops::ToUpper(c), static_cast<char>(std::toupper(c_int))) << FmtChar(c);
     }
 }
 
-TEST(CommonStr, Repeat) {
-    using namespace oops;
-    EXPECT_EQ(Repeat("abc", 0), "");
-    EXPECT_EQ(Repeat("abc", 1), "abc");
-    EXPECT_EQ(Repeat("abc", 3), "abcabcabc");
-    EXPECT_EQ(Repeat("", 0), "");
-    EXPECT_EQ(Repeat("", 1), "");
-    EXPECT_EQ(Repeat("", 3), "");
+TEST(CommonStr, ToSv) {
+    for (char c : oops::view::IntegerSet<char>) {
+        std::string_view sv{oops::ToSv(c)};
+        EXPECT_EQ(sv.size(), 1);
+        EXPECT_EQ(sv.front(), c);
+    }
 }
 
 TEST(CommonStr, SplitBack) {
@@ -221,16 +199,148 @@ TEST(CommonStr, SplitBack) {
 TEST(CommonStr, Split) {
     EXPECT_THAT(oops::Split(""), ElementsAre());
     EXPECT_THAT(oops::Split(" "), ElementsAre());
-    EXPECT_THAT(oops::Split("   "), ElementsAre());
+    EXPECT_THAT(oops::Split("  "), ElementsAre());
     EXPECT_THAT(oops::Split("abc"), ElementsAre("abc"));
-    EXPECT_THAT(oops::Split("abc defg hi"), ElementsAre("abc", "defg", "hi"));
-    EXPECT_THAT(oops::Split(" abc   defg hi  "), ElementsAre("abc", "defg", "hi"));
-    EXPECT_THAT(oops::Split("\nabc \t defg\fhi  "), ElementsAre("abc", "defg", "hi"));
+    EXPECT_THAT(oops::Split("abc "), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split("abc  "), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split(" abc"), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split("  abc"), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split("abc def"), ElementsAre("abc", "def"));
+    EXPECT_THAT(oops::Split("abc  def"), ElementsAre("abc", "def"));
+    EXPECT_THAT(oops::Split("abc def ghi"), ElementsAre("abc", "def", "ghi"));
+}
+
+TEST(CommonStr, SplitWhitespace) {
+    EXPECT_THAT(oops::Split("\t"), ElementsAre());
+    EXPECT_THAT(oops::Split("\n\r"), ElementsAre());
+    EXPECT_THAT(oops::Split("abc\v"), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split("abc\f\t"), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split("\nabc"), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split("\r\vabc"), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split("abc\fdef"), ElementsAre("abc", "def"));
+    EXPECT_THAT(oops::Split("abc\t\ndef"), ElementsAre("abc", "def"));
+    EXPECT_THAT(oops::Split("abc\rdef\vghi"), ElementsAre("abc", "def", "ghi"));
 }
 
 TEST(CommonStr, SplitDelim) {
+    EXPECT_THAT(oops::Split("", ":"), ElementsAre(""));
+    EXPECT_THAT(oops::Split(":", ":"), ElementsAre("", ""));
+    EXPECT_THAT(oops::Split("::", ":"), ElementsAre("", "", ""));
+    EXPECT_THAT(oops::Split("abc", ":"), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split("abc:", ":"), ElementsAre("abc", ""));
+    EXPECT_THAT(oops::Split("abc::", ":"), ElementsAre("abc", "", ""));
+    EXPECT_THAT(oops::Split(":abc", ":"), ElementsAre("", "abc"));
+    EXPECT_THAT(oops::Split("::abc", ":"), ElementsAre("", "", "abc"));
+    EXPECT_THAT(oops::Split("abc:def", ":"), ElementsAre("abc", "def"));
+    EXPECT_THAT(oops::Split("abc::def", ":"), ElementsAre("abc", "", "def"));
+    EXPECT_THAT(oops::Split("abc:def:ghi", ":"), ElementsAre("abc", "def", "ghi"));
+}
+
+TEST(CommonStr, SplitCharDelim) {
+    EXPECT_THAT(oops::Split("", ':'), ElementsAre(""));
+    EXPECT_THAT(oops::Split(":", ':'), ElementsAre("", ""));
+    EXPECT_THAT(oops::Split("::", ':'), ElementsAre("", "", ""));
+    EXPECT_THAT(oops::Split("abc", ':'), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split("abc:", ':'), ElementsAre("abc", ""));
+    EXPECT_THAT(oops::Split("abc::", ':'), ElementsAre("abc", "", ""));
+    EXPECT_THAT(oops::Split(":abc", ':'), ElementsAre("", "abc"));
+    EXPECT_THAT(oops::Split("::abc", ':'), ElementsAre("", "", "abc"));
+    EXPECT_THAT(oops::Split("abc:def", ':'), ElementsAre("abc", "def"));
+    EXPECT_THAT(oops::Split("abc::def", ':'), ElementsAre("abc", "", "def"));
+    EXPECT_THAT(oops::Split("abc:def:ghi", ':'), ElementsAre("abc", "def", "ghi"));
+}
+
+TEST(CommonStr, SplitMultiDelims) {
+    EXPECT_THAT(oops::Split("", "::"), ElementsAre(""));
+    EXPECT_THAT(oops::Split(":", "::"), ElementsAre(":"));
+    EXPECT_THAT(oops::Split("::", "::"), ElementsAre("", ""));
+    EXPECT_THAT(oops::Split(":::", "::"), ElementsAre("", ":"));
+    EXPECT_THAT(oops::Split("::::", "::"), ElementsAre("", "", ""));
+    EXPECT_THAT(oops::Split("abc", "::"), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split("abc:", "::"), ElementsAre("abc:"));
+    EXPECT_THAT(oops::Split("abc::", "::"), ElementsAre("abc", ""));
+    EXPECT_THAT(oops::Split("abc:::", "::"), ElementsAre("abc", ":"));
+    EXPECT_THAT(oops::Split("abc::::", "::"), ElementsAre("abc", "", ""));
+    EXPECT_THAT(oops::Split(":abc", "::"), ElementsAre(":abc"));
+    EXPECT_THAT(oops::Split("::abc", "::"), ElementsAre("", "abc"));
+    EXPECT_THAT(oops::Split(":::abc", "::"), ElementsAre("", ":abc"));
+    EXPECT_THAT(oops::Split("::::abc", "::"), ElementsAre("", "", "abc"));
+    EXPECT_THAT(oops::Split("abc:def", "::"), ElementsAre("abc:def"));
+    EXPECT_THAT(oops::Split("abc::def", "::"), ElementsAre("abc", "def"));
+    EXPECT_THAT(oops::Split("abc:::def", "::"), ElementsAre("abc", ":def"));
+    EXPECT_THAT(oops::Split("abc::::def", "::"), ElementsAre("abc", "", "def"));
+    EXPECT_THAT(oops::Split("abc::def::ghi", "::"), ElementsAre("abc", "def", "ghi"));
+}
+
+TEST(CommonStr, SplitAnyOfDelims) {
+    EXPECT_THAT(oops::Split("", ":;").AnyOfDelims(), ElementsAre(""));
+    EXPECT_THAT(oops::Split(":", ":;").AnyOfDelims(), ElementsAre("", ""));
+    EXPECT_THAT(oops::Split(";", ":;").AnyOfDelims(), ElementsAre("", ""));
+    EXPECT_THAT(oops::Split(":;", ":;").AnyOfDelims(), ElementsAre("", "", ""));
+    EXPECT_THAT(oops::Split("abc", ":;").AnyOfDelims(), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split("abc:", ":;").AnyOfDelims(), ElementsAre("abc", ""));
+    EXPECT_THAT(oops::Split("abc;", ":;").AnyOfDelims(), ElementsAre("abc", ""));
+    EXPECT_THAT(oops::Split("abc:;", ":;").AnyOfDelims(), ElementsAre("abc", "", ""));
+    EXPECT_THAT(oops::Split(":abc", ":;").AnyOfDelims(), ElementsAre("", "abc"));
+    EXPECT_THAT(oops::Split(";abc", ":;").AnyOfDelims(), ElementsAre("", "abc"));
+    EXPECT_THAT(oops::Split(":;abc", ":;").AnyOfDelims(), ElementsAre("", "", "abc"));
+    EXPECT_THAT(oops::Split("abc:def", ":;").AnyOfDelims(), ElementsAre("abc", "def"));
+    EXPECT_THAT(oops::Split("abc;def", ":;").AnyOfDelims(), ElementsAre("abc", "def"));
+    EXPECT_THAT(oops::Split("abc:;def", ":;").AnyOfDelims(), ElementsAre("abc", "", "def"));
+    EXPECT_THAT(oops::Split("abc:def;ghi", ":;").AnyOfDelims(), ElementsAre("abc", "def", "ghi"));
+}
+
+TEST(CommonStr, SplitNone) {
+    // 跟随std::views::split行为，做逐字符分割
+    EXPECT_THAT(oops::Split("", ""), ElementsAre(""));
+    EXPECT_THAT(oops::Split("a", ""), ElementsAre("a"));
+    EXPECT_THAT(oops::Split("ab", ""), ElementsAre("a", "b"));
+    EXPECT_THAT(oops::Split("abc", ""), ElementsAre("a", "b", "c"));
+}
+
+TEST(CommonStr, SplitAnyOfNone) {
+    EXPECT_THAT(oops::Split("", "").AnyOfDelims(), ElementsAre(""));
+    EXPECT_THAT(oops::Split("a", "").AnyOfDelims(), ElementsAre("a"));
+    EXPECT_THAT(oops::Split("ab", "").AnyOfDelims(), ElementsAre("ab"));
+    EXPECT_THAT(oops::Split("abc", "").AnyOfDelims(), ElementsAre("abc"));
+}
+
+TEST(CommonStr, SplitNotSkipEmpty) {
+    EXPECT_THAT(oops::Split("").SkipEmpty(false), ElementsAre(""));
+    EXPECT_THAT(oops::Split(" ").SkipEmpty(false), ElementsAre("", ""));
+    EXPECT_THAT(oops::Split("  ").SkipEmpty(false), ElementsAre("", "", ""));
+    EXPECT_THAT(oops::Split("abc").SkipEmpty(false), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split("abc ").SkipEmpty(false), ElementsAre("abc", ""));
+    EXPECT_THAT(oops::Split("abc  ").SkipEmpty(false), ElementsAre("abc", "", ""));
+    EXPECT_THAT(oops::Split(" abc").SkipEmpty(false), ElementsAre("", "abc"));
+    EXPECT_THAT(oops::Split("  abc").SkipEmpty(false), ElementsAre("", "", "abc"));
+    EXPECT_THAT(oops::Split("abc def").SkipEmpty(false), ElementsAre("abc", "def"));
+    EXPECT_THAT(oops::Split("abc  def").SkipEmpty(false), ElementsAre("abc", "", "def"));
+    EXPECT_THAT(oops::Split("abc def ghi").SkipEmpty(false), ElementsAre("abc", "def", "ghi"));
+}
+
+TEST(CommonStr, SplitDelimSkipEmpty) {
+    EXPECT_THAT(oops::Split("", ":").SkipEmpty(), ElementsAre());
+    EXPECT_THAT(oops::Split(":", ":").SkipEmpty(), ElementsAre());
+    EXPECT_THAT(oops::Split("::", ":").SkipEmpty(), ElementsAre());
+    EXPECT_THAT(oops::Split("abc", ":").SkipEmpty(), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split("abc:", ":").SkipEmpty(), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split("abc::", ":").SkipEmpty(), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split(":abc", ":").SkipEmpty(), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split("::abc", ":").SkipEmpty(), ElementsAre("abc"));
+    EXPECT_THAT(oops::Split("abc:def", ":").SkipEmpty(), ElementsAre("abc", "def"));
+    EXPECT_THAT(oops::Split("abc::def", ":").SkipEmpty(), ElementsAre("abc", "def"));
+    EXPECT_THAT(oops::Split("abc:def:ghi", ":").SkipEmpty(), ElementsAre("abc", "def", "ghi"));
+}
+
+TEST(CommonStr, Repeat) {
     using namespace oops;
-    EXPECT_THAT(Split("abc:defg:hi", ":"), ElementsAre("abc", "defg", "hi"));
+    EXPECT_EQ(Repeat("abc", 0), "");
+    EXPECT_EQ(Repeat("abc", 1), "abc");
+    EXPECT_EQ(Repeat("abc", 3), "abcabcabc");
+    EXPECT_EQ(Repeat("", 0), "");
+    EXPECT_EQ(Repeat("", 1), "");
+    EXPECT_EQ(Repeat("", 3), "");
 }
 
 TEST(CommonStr, StartsWith) {
