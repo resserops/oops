@@ -1,6 +1,8 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -20,6 +22,19 @@ constexpr bool IsSpace(char c) noexcept {
 
 constexpr char ToUpper(char c) noexcept { return IsLower(c) ? (c - 'a' + 'A') : c; }
 constexpr char ToLower(char c) noexcept { return IsUpper(c) ? (c - 'A' + 'a') : c; }
+
+namespace detail {
+constexpr auto CHAR_MAP = [] {
+    constexpr std::size_t n{std::numeric_limits<unsigned char>::max() + 1};
+    std::array<char, n> res{};
+    for (std::size_t i{0}; i < n; ++i) {
+        res[i] = static_cast<char>(i);
+    }
+    return res;
+}();
+} // namespace detail
+
+constexpr std::string_view ToSv(char ch) noexcept { return {&detail::CHAR_MAP[static_cast<unsigned char>(ch)], 1}; }
 
 // 字符串读操作
 std::string SplitBack(const std::string &str, const std::string &delim); // SplitView实现逆序迭代器后合并到Split中
@@ -49,17 +64,16 @@ public:
 
         bool operator==(const Iterator &other) const {
             // 短路和迭代器的比较
-            if ((s_.data() == nullptr) ^ (other.s_.data() == nullptr)) {
+            if ((token_.data() == nullptr) ^ (other.token_.data() == nullptr)) {
                 return false; // 一个迭代器是尾迭代器，另一个不是
             }
-            if (s_.data() == nullptr) {
+            if (token_.data() == nullptr) {
                 return true; // 均是尾迭代器
             }
             // 非尾迭代器的严格匹配
-            return (s_.data() == other.s_.data()) && (s_.size() == other.s_.size()) &&
-                   (token_.data() == other.token_.data()) && (token_.size() == other.token_.size()) &&
-                   (delim_ == other.delim_) && (any_of_delims_ == other.any_of_delims_) &&
-                   (skip_empty_ == other.skip_empty_);
+            return (token_.data() == other.token_.data()) && (token_.size() == other.token_.size()) &&
+                   (s_.data() == other.s_.data()) && (s_.size() == other.s_.size()) && (delim_ == other.delim_) &&
+                   (any_of_delims_ == other.any_of_delims_) && (skip_empty_ == other.skip_empty_);
         }
         bool operator!=(const Iterator &other) const { return !operator==(other); }
 
@@ -79,8 +93,8 @@ public:
     using const_iterator = Iterator;
     using iterator = Iterator;
 
-    SplitView(std::string_view s) : s_{s}, delim_{SPACE}, any_of_delims_{true}, skip_empty_{true} {}
-    SplitView(std::string_view s, char delim) : s_{s}, delim_(&c_, 1), c_{delim} {}
+    explicit SplitView(std::string_view s) : s_{s}, delim_{SPACE}, any_of_delims_{true}, skip_empty_{true} {}
+    SplitView(std::string_view s, char delim) : s_{s}, delim_{ToSv(delim)} {}
     SplitView(std::string_view s, std::string_view delim) : s_{s}, delim_{delim} {}
 
     Iterator begin() const { return Iterator(s_, delim_, any_of_delims_, skip_empty_); }
@@ -114,7 +128,6 @@ private:
     const std::string_view delim_;
     bool any_of_delims_{};
     bool skip_empty_{};
-    const char c_{}; // 支持单字符delim
 };
 
 inline SplitView Split(std::string_view s) { return SplitView(s); }

@@ -10,28 +10,30 @@ std::string SplitBack(const std::string &str, const std::string &delim) {
 }
 
 void SplitView::Iterator::NextToken() {
-    if (s_.data() == nullptr) {
-        return;
-    }
-
     do {
-        if (s_.empty()) {
-            s_ = {};
-            return;
+        if (s_.data() == nullptr) {
+            token_ = {};
+            continue;
         }
 
-        std::size_t pos;
+        if (s_.empty()) {
+            token_ = s_;
+            s_ = {};
+            continue;
+        }
+
+        std::size_t pos{};
         if (any_of_delims_) {
             pos = s_.find_first_of(delim_);
-        } else if (delim_.empty()) {
-            pos = 1;
+        } else if (delim_.empty()) { // 特殊分支，空delim的逐字符分割
+            pos = (s_.size() > 1) ? 1 : std::string_view::npos;
         } else {
             pos = s_.find(delim_);
         }
 
         if (pos == std::string_view::npos) {
             token_ = s_;
-            s_.remove_prefix(s_.size());
+            s_ = {};
         } else {
             token_ = s_.substr(0, pos);
             if (any_of_delims_) {
@@ -40,7 +42,7 @@ void SplitView::Iterator::NextToken() {
                 s_.remove_prefix(pos + delim_.size());
             }
         }
-    } while (skip_empty_ && token_.empty() && s_.data() != nullptr);
+    } while (skip_empty_ && token_.empty() && token_.data() != nullptr);
 }
 
 std::string ToUpper(std::string_view s) noexcept {

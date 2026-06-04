@@ -1,8 +1,8 @@
 #include "oops/type_list.h"
 #include <tuple>
-using namespace oops::meta;
 
 #define TEST_STATIC(suite, case) constexpr void TestStatic_##suite_##case ()
+using namespace oops::meta;
 
 namespace {
 class A {};
