@@ -17,8 +17,8 @@ inline auto GetTicksPerSec() {
 class CpuTimer {
     struct CpuTicks {
         std::uintmax_t TotalTicks() const { return user_ticks + kernel_ticks; };
-        std::uintmax_t user_ticks;
-        std::uintmax_t kernel_ticks;
+        std::uintmax_t user_ticks{};
+        std::uintmax_t kernel_ticks{};
     };
 
     using CpuTimePoint = std::variant<struct timespec, CpuTicks, std::monostate>;
@@ -34,10 +34,17 @@ public:
         double elapsed_time{};
     };
 
+    static constexpr pid_t SYSTEM{-1};
+    static std::string GetPath(pid_t pid) {
+        if (pid == SYSTEM) {
+            return "/proc/stat";
+        }
+        return "/proc/" + std::to_string(pid) + "/stat";
+    }
+
     CpuTimer() : cpu_t0_{GetCpuTimePoint()}, elapsed_t0_{std::chrono::steady_clock::now()} {}
     CpuTimer(pid_t pid)
-        : stat_path_{"/proc/" + std::to_string(pid) + "/stat"}, cpu_t0_{GetCpuTimePoint()},
-          elapsed_t0_{std::chrono::steady_clock::now()} {}
+        : stat_path_{GetPath(pid)}, cpu_t0_{GetCpuTimePoint()}, elapsed_t0_{std::chrono::steady_clock::now()} {}
 
     void Reset() {
         cpu_t0_ = GetCpuTimePoint();
@@ -76,20 +83,42 @@ private:
             return spec;
         }
 
-        // 文件快照(/proc/pid/stat)获取cpu时间，Ticks级精度(约10ms)
+        // 文件快照(/proc/*/stat)获取进程或system cpu时间，Ticks级精度(约10ms)
         // 解析效率要求高，使用栈缓冲
         char buf[512];
         std::FILE *f{std::fopen(stat_path_.c_str(), "r")};
         if (!f) {
             return std::monostate{}; // 无法打开文件，返回空类型
         }
-
         auto res{std::fgets(buf, sizeof(buf), f)};
         std::fclose(f);
         if (res == nullptr) {
             return std::monostate{}; // 读取失败，返回空类型
         }
 
+        if (stat_path_.size() == 10) {
+            // 文件快照(/proc/stat)获取系统级cpu时间
+            char *p{buf};
+            while ((*p < '0') || (*p > '9')) {
+                ++p;
+            }
+            CpuTicks cpu_ticks;
+            cpu_ticks.user_ticks += std::strtoull(p, &p, 10);     // 匹配第1个字段user
+            cpu_ticks.user_ticks += std::strtoull(p + 1, &p, 10); // 匹配第2个字段nice
+
+            cpu_ticks.kernel_ticks += std::strtoull(p + 1, &p, 10); // 匹配第3个字段system
+
+            // 跳过第4个字段idle和第5个字段iowait
+            int rem{2};
+            while (rem-- > 0) {
+                p = std::strchr(p + 1, ' ');
+                assert(p != nullptr);
+            }
+
+            cpu_ticks.kernel_ticks += std::strtoull(p + 1, &p, 10); // 匹配第6个字段irq
+            cpu_ticks.kernel_ticks += std::strtoull(p + 1, &p, 10); // 匹配第7个字段softirq
+            return cpu_ticks;
+        }
         // 查找第2个字段的右括号
         char *p{std::strrchr(buf, ')')};
         assert(p != nullptr);
