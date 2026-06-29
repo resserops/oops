@@ -167,7 +167,7 @@ void Measure() {
     std::cout << MakeHeaderRow() << std::endl;
 
     std::vector<double> values(oops::ToUnderlying(Metrics::COUNT));
-    while (!STOP.load(std::memory_order_relaxed) && ProcExist(ARGS.measure.pid)) {
+    while (!STOP.load(std::memory_order_relaxed) && (ProcExist(ARGS.measure.pid) || ARGS.measure.pid == -1)) {
         std::this_thread::sleep_until(next_time);
 
         // 根据选项配置完成测量
@@ -433,9 +433,6 @@ void AlignTimeline() {
         double range_l_fidx{std::ceil(std::chrono::duration<double>{range_l - raw_l}.count()) / r_entry.interval};
         double range_r_fidx{std::ceil(std::chrono::duration<double>{range_r - raw_l}.count()) / r_entry.interval};
 
-        std::cout << "lidx: " << range_l_fidx << std::endl;
-        std::cout << "ridx: " << range_r_fidx << std::endl;
-
         // 计算range对应的下标，左闭右开
         std::size_t range_l_idx{std::max<std::ptrdiff_t>(range_l_fidx, 0)};
         std::size_t range_r_idx{std::min<std::ptrdiff_t>(range_r_fidx, size)};
@@ -469,38 +466,39 @@ void AlignTimeline() {
     }
 }
 
-void PlotCpu() {
-    if (RAW_DATA_TABLE.empty()) {
-        return;
-    }
+auto GetMetricEntries(Metrics m) {
+    struct Entries {
+        RawDataEntry &r_entry;
+        MetricDataEntry &m_entry;
+    };
 
-    // 识别记录了CPU利用率的raw data idx及对应CPU利用率的metric data dix
-    std::vector<std::pair<std::size_t, std::size_t>> valid_idxs;
-    for (std::size_t i{0}; i < RAW_DATA_TABLE.size(); ++i) {
-        const auto &r_entry{RAW_DATA_TABLE[i]};
-        for (std::size_t j{0}; j < r_entry.metric_data_table.size(); ++j) {
-            const auto &m_entry{r_entry.metric_data_table.at(j)};
-            if (m_entry.name == METRIC_TABLE[oops::ToUnderlying(Metrics::CPU_USAGE)].name && !m_entry.values.empty()) {
-                valid_idxs.emplace_back(i, j);
+    std::vector<Entries> res;
+    for (auto &r_entry : RAW_DATA_TABLE) {
+        for (auto &m_entry : r_entry.metric_data_table) {
+            if (m_entry.name == METRIC_TABLE[oops::ToUnderlying(m)].name && !m_entry.values.empty()) {
+                res.push_back({r_entry, m_entry});
             }
         }
     }
-    if (valid_idxs.empty()) {
+    return res;
+}
+
+void PlotCpu() {
+    assert(!RAW_DATA_TABLE.empty());
+
+    auto entries{GetMetricEntries(Metrics::CPU_USAGE)};
+    if (entries.empty()) {
         return;
     }
 
     // 根据downsample_rate，合并数据点，cpu利用率采取平均值
-    for (const auto &[r_idx, m_idx] : valid_idxs) {
-        auto &r_entry{RAW_DATA_TABLE[r_idx]};
+    for (const auto &[r_entry, m_entry] : entries) {
         if (r_entry.downsample_rate <= 1) {
             // 不需要合并
             continue;
         }
 
-        std::cout << r_entry.downsample_rate << std::endl;
-
         // 计算合并后的新数据点数
-        auto &m_entry{r_entry.metric_data_table[m_idx]};
         std::size_t new_i{0};
         for (std::size_t i{0}; i + r_entry.downsample_rate - 1 < m_entry.values.size(); i += r_entry.downsample_rate) {
             double sum{};
@@ -508,7 +506,6 @@ void PlotCpu() {
                 sum += m_entry.values[j];
             }
             m_entry.values[new_i++] = sum / r_entry.downsample_rate;
-            std::cout << "avg: " << sum / r_entry.downsample_rate << std::endl;
         }
         m_entry.values.resize(new_i);
         r_entry.interval *= r_entry.downsample_rate;
@@ -516,31 +513,30 @@ void PlotCpu() {
 
     // 最大数值
     double max_value{std::numeric_limits<double>::min()};
-    for (const auto &[r_idx, m_idx] : valid_idxs) {
-        for (double value : RAW_DATA_TABLE[r_idx].metric_data_table[m_idx].values) {
+    for (const auto &e : entries) {
+        for (double value : e.m_entry.values) {
             max_value = std::max(max_value, value);
         }
     }
-    std::cout << "max_value: " << max_value << std::endl;
 
     py::scoped_interpreter guard{}; // 必须放在try-catch块外侧，否则无法捕获py::error_already_set异常
     try {
         auto plt{py::module_::import("matplotlib.pyplot")};
         auto subplots{plt.attr("subplots")(
-            valid_idxs.size(), 1, py::arg("sharex") = true,
+            entries.size(), 1, py::arg("sharex") = true,
             py::arg("figsize") = py::make_tuple(
-                16, std::max<std::size_t>(std::min<std::size_t>(9, 3 * valid_idxs.size()), valid_idxs.size())))};
+                16, std::max<std::size_t>(std::min<std::size_t>(9, 3 * entries.size()), entries.size())))};
 
         py::list axes; // 存储所有子图，使用vector反而会有拷贝和引用计数开销
-        if (valid_idxs.size() == 1) {
+        if (entries.size() == 1) {
             axes.append(subplots[py::int_(1)]);
         } else {
             axes = subplots[py::int_(1)].cast<py::list>();
         }
 
-        for (std::size_t i{0}; i < valid_idxs.size(); ++i) {
-            const auto &r_entry{RAW_DATA_TABLE[valid_idxs[i].first]};
-            const auto &m_entry{r_entry.metric_data_table[valid_idxs[i].second]};
+        for (std::size_t i{0}; i < entries.size(); ++i) {
+            const auto &r_entry{entries[i].r_entry};
+            const auto &m_entry{entries[i].m_entry};
             double offset{std::chrono::duration<double>{r_entry.start_time - TOTAL_START_TIME}.count()};
 
             // 构造时间数组，由于offset差异，每个raw data需要单独构造
@@ -557,7 +553,6 @@ void PlotCpu() {
             ax.attr("margins")(py::arg("x") = 0);
             ax.attr("grid")(true, py::arg("linestyle") = "--", py::arg("alpha") = 0.5);
             double ylim{std::max(100., max_value)};
-            std::cout << "ylim " << ylim << std::endl;
             ax.attr("set_ylim")(-ylim / 20, ylim + ylim / 20); // 对齐每个子图y坐标范围
             // 绘制每个子图左侧描述raw data的标签
             ax.attr("set_ylabel")(
@@ -592,6 +587,9 @@ void Report() {
 
     // 对齐时间轴，range裁剪，分辨率缩放
     AlignTimeline();
+    if (RAW_DATA_TABLE.empty()) {
+        return;
+    }
 
     // 绘制CPU利用率折线图
     PlotCpu();

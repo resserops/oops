@@ -63,14 +63,14 @@ public:
         }
 
         bool operator==(const Iterator &other) const {
-            // 短路和迭代器的比较
+            // 尾迭代器参与的快速比较
             if ((token_.data() == nullptr) ^ (other.token_.data() == nullptr)) {
                 return false; // 一个迭代器是尾迭代器，另一个不是
             }
             if (token_.data() == nullptr) {
                 return true; // 均是尾迭代器
             }
-            // 非尾迭代器的严格匹配
+            // 两个正常迭代器的严格比较
             return (token_.data() == other.token_.data()) && (token_.size() == other.token_.size()) &&
                    (s_.data() == other.s_.data()) && (s_.size() == other.s_.size()) && (delim_ == other.delim_) &&
                    (any_of_delims_ == other.any_of_delims_) && (skip_empty_ == other.skip_empty_);
