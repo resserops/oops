@@ -207,7 +207,7 @@ int main(int argc, char *argv[]) {
     }
 
     auto time{std::chrono::steady_clock::now()};
-    oops::CpuTimer cpu_timer;
+    oops::SelfCpuTimer cpu_timer;
     auto step{(time - start_time) / args.itv};
     auto next_time{start_time + (step + 1) * args.itv};
 

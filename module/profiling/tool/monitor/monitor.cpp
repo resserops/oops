@@ -24,6 +24,7 @@
 
 #include "oops/cpu_timer.h"
 #include "oops/enum_bitset.h"
+#include "oops/once.h"
 #include "oops/str.h"
 #include "oops/system_info.h"
 #include "oops/unit.h"
@@ -157,11 +158,20 @@ void Measure() {
 
     // 系统时钟盖时间戳，单调时钟算时间差
     auto system_now{std::chrono::system_clock::now()};
-    oops::CpuTimer cpu_timer(ARGS.measure.pid); // 用于测量cpu时间
+    std::variant<std::monostate, oops::CpuTimer<oops::SystemCpuClock>, oops::CpuTimer<oops::PidCpuClock>> cpu_timer_var;
+    if (ARGS.measure.pid == -1) {
+        cpu_timer_var.emplace<oops::CpuTimer<oops::SystemCpuClock>>();
+    } else {
+        cpu_timer_var.emplace<oops::CpuTimer<oops::PidCpuClock>>(ARGS.measure.pid);
+    }
 
     std::cout << "Timestamp: " << TimestampToStr(system_now) << '\n' << std::endl;
     std::size_t step{0};
-    auto next_time{cpu_timer.GetElapsedT0() + (step + 1) * itv};
+    auto start_time{
+        (ARGS.measure.pid == -1)
+            ? std::get<oops::CpuTimer<oops::SystemCpuClock>>(cpu_timer_var).GetElapsedTimer().GetStart()
+            : std::get<oops::CpuTimer<oops::PidCpuClock>>(cpu_timer_var).GetElapsedTimer().GetStart()};
+    auto next_time{start_time + (step + 1) * itv};
 
     std::cout << "Monitoring results:" << std::endl;
     std::cout << MakeHeaderRow() << std::endl;
@@ -172,7 +182,12 @@ void Measure() {
 
         // 根据选项配置完成测量
         if (ENABLED_METRIC_GROUP.Test(MetricGroup::CPU)) { // 有限测量区间指标，再测量单点指标
-            values[oops::ToUnderlying(Metrics::CPU_USAGE)] = 100 * cpu_timer.Lap().CpuUsage();
+            double usage_pct{TRY_OR(
+                (ARGS.measure.pid == -1)
+                    ? std::get<oops::CpuTimer<oops::SystemCpuClock>>(cpu_timer_var).Lap().CpuUsagePct()
+                    : std::get<oops::CpuTimer<oops::PidCpuClock>>(cpu_timer_var).Lap().CpuUsagePct(),
+                .0)};
+            values[oops::ToUnderlying(Metrics::CPU_USAGE)] = usage_pct;
         }
 
         if (ENABLED_METRIC_GROUP.Test(MetricGroup::MEMORY)) {
@@ -601,7 +616,7 @@ void ParseArgs(int argc, char *argv[]) {
 
     argparse::ArgumentParser measure{"measure"};
     measure.add_description("measure runtime performance metrics");
-    measure.add_argument("pid").help("target process id to monitor").scan<'i', pid_t>().required();
+    measure.add_argument("pid").help("target process id to monitor").scan<'i', pid_t>().default_value(pid_t{-1});
     measure.add_argument("-i", "--itv")
         .help("sampling interval in secondes (e.g., 0.5 for 500ms)")
         .scan<'g', double>()
@@ -647,6 +662,10 @@ void ParseArgs(int argc, char *argv[]) {
 
         // pid
         ARGS.measure.pid = measure.get<pid_t>("pid");
+        if (!ARGS.measure.pid == -1 && !ProcExist(ARGS.measure.pid)) {
+            std::cerr << "Error: process " << ARGS.measure.pid << " not exist" << std::endl;
+            exit(1);
+        }
 
         // --itv
         ARGS.measure.itv = measure.get<double>("--itv");

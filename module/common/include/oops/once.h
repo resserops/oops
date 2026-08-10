@@ -2,6 +2,16 @@
 
 #include <cstddef>
 
+#define OOPS_TRY_OR(expression, default_value)    \
+    ([&]() noexcept {                             \
+        try {                                     \
+            return (expression);                  \
+        } catch (...) { return (default_value); } \
+    }())
+#ifndef TRY_OR
+#define TRY_OR(expression, default_value) OOPS_TRY_OR(expression, default_value)
+#endif
+
 #define OOPS_ONLY(n) if (::oops::detail::Only<n>::F([] {}))
 #ifndef ONLY
 #define ONLY(n) OOPS_ONLY(n)
