@@ -10,115 +10,83 @@
 namespace oops {
 inline auto GetTicksPerSec() {
     // 每秒时钟滴答数，系统启动后固定
-    static const auto TICKS_PER_SEC{sysconf(_SC_CLK_TCK)};
+    static const auto TICKS_PER_SEC{sysconf(_SC_CLK_TCK)}; // TODO(resserops): 异常判断
     return TICKS_PER_SEC;
 }
 
-class CpuTimer {
-    struct CpuTicks {
-        std::uintmax_t TotalTicks() const { return user_ticks + kernel_ticks; };
-        std::uintmax_t user_ticks{};
-        std::uintmax_t kernel_ticks{};
-    };
+// 和chrono::clock定义保持一致
+struct SelfCpuClock {
+    using duration = std::chrono::nanoseconds;
+    using rep = duration::rep;
+    using period = duration::period;
+    using time_point = std::chrono::time_point<SelfCpuClock, duration>;
 
-    using CpuTimePoint = std::variant<struct timespec, CpuTicks, std::monostate>;
-
-public:
-    struct Duration {
-        double CpuUsage() const { return CpuTime() / ElapsedTime(); }
-        double CpuUsagePct() const { return 100 * CpuUsage(); }
-        double CpuTime() const { return cpu_time; }
-        double ElapsedTime() const { return elapsed_time; }
-
-        double cpu_time{};
-        double elapsed_time{};
-    };
-
-    static constexpr pid_t SYSTEM{-1};
-    static std::string GetPath(pid_t pid) {
-        if (pid == SYSTEM) {
-            return "/proc/stat";
+    static constexpr bool is_steady{true};
+    static time_point now() {
+        struct timespec spec;
+        if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &spec) != 0) {
+            throw std::runtime_error("SelfCpuClock::now() failed to get CLOCK_PROCESS_CPUTIME_ID");
         }
-        return "/proc/" + std::to_string(pid) + "/stat";
+        return time_point{std::chrono::seconds{spec.tv_sec} + std::chrono::nanoseconds{spec.tv_nsec}};
+    }
+};
+
+class FILEGuard {
+public:
+    FILEGuard() = default;
+    explicit FILEGuard(std::FILE *f) noexcept : f_{f} {}
+    FILEGuard(const char *path, const char *mode) noexcept : f_{std::fopen(path, mode)} {}
+
+    // 禁止复制，允许移动
+    FILEGuard(const FILEGuard &) = delete;
+    FILEGuard(FILEGuard &&other) noexcept : f_{other.f_} { other.f_ = nullptr; }
+
+    ~FILEGuard() noexcept { Close(); }
+
+    FILEGuard &operator=(const FILEGuard &) = delete;
+    FILEGuard &operator=(FILEGuard &&other) noexcept {
+        std::swap(f_, other.f_);
+        return *this;
     }
 
-    CpuTimer() : cpu_t0_{GetCpuTimePoint()}, elapsed_t0_{std::chrono::steady_clock::now()} {}
-    CpuTimer(pid_t pid)
-        : stat_path_{GetPath(pid)}, cpu_t0_{GetCpuTimePoint()}, elapsed_t0_{std::chrono::steady_clock::now()} {}
+    explicit operator bool() const noexcept { return f_ != nullptr; }
+    std::FILE *Get() const noexcept { return f_; }
 
-    void Reset() {
-        cpu_t0_ = GetCpuTimePoint();
-        elapsed_t0_ = std::chrono::steady_clock::now();
+    void Close() noexcept {
+        if (f_ != nullptr) {
+            std::fclose(f_);
+            f_ = nullptr;
+        }
     }
-
-    Duration Lap() {
-        CpuTimePoint cpu_t1{GetCpuTimePoint()};
-        auto elapsed_t1{std::chrono::steady_clock::now()};
-
-        double cpu_s{GetCpuDuration(cpu_t1)};
-        double elapsed_s{std::chrono::duration<double>(elapsed_t1 - elapsed_t0_).count()};
-
-        cpu_t0_ = cpu_t1;
-        elapsed_t0_ = elapsed_t1;
-        return {cpu_s, elapsed_s};
-    }
-
-    Duration Peek() const {
-        CpuTimePoint cpu_t1{GetCpuTimePoint()};
-        auto elapsed_t1{std::chrono::steady_clock::now()};
-
-        double cpu_s{GetCpuDuration(cpu_t1)};
-        double elapsed_s{std::chrono::duration<double>(elapsed_t1 - elapsed_t0_).count()};
-        return {cpu_s, elapsed_s};
-    }
-
-    auto GetElapsedT0() const { return elapsed_t0_; }
 
 private:
-    CpuTimePoint GetCpuTimePoint() const {
-        if (stat_path_.empty()) {
-            // 内核实时计数器获取cpu时间，纳秒级精度
-            struct timespec spec;
-            clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &spec);
-            return spec;
-        }
+    std::FILE *f_{nullptr};
+};
 
-        // 文件快照(/proc/*/stat)获取进程或system cpu时间，Ticks级精度(约10ms)
-        // 解析效率要求高，使用栈缓冲
+class PidCpuClock {
+public:
+    using duration = std::chrono::duration<double>;
+    using rep = duration::rep;
+    using period = duration::period;
+    using time_point = std::chrono::time_point<PidCpuClock, duration>;
+
+    static constexpr bool is_steady{true};
+    static constexpr auto PERIOD_PER_SEC{duration{std::chrono::seconds{1}}.count()}; // 必须是无损转换
+
+    explicit PidCpuClock(pid_t pid) : stat_path_{"/proc/" + std::to_string(pid) + "/stat"} {}
+    time_point now() const {
+        // 文件快照(/proc/pid/stat)获取进程或system cpu时间，Ticks级精度(约10ms)
         char buf[512];
-        std::FILE *f{std::fopen(stat_path_.c_str(), "r")};
+        FILEGuard f(stat_path_.c_str(), "r");
         if (!f) {
-            return std::monostate{}; // 无法打开文件，返回空类型
+            throw std::runtime_error("");
         }
-        auto res{std::fgets(buf, sizeof(buf), f)};
-        std::fclose(f);
+        auto res{std::fgets(buf, sizeof(buf), f.Get())};
+        f.Close();
         if (res == nullptr) {
-            return std::monostate{}; // 读取失败，返回空类型
+            // 异常处理
         }
 
-        if (stat_path_.size() == 10) {
-            // 文件快照(/proc/stat)获取系统级cpu时间
-            char *p{buf};
-            while ((*p < '0') || (*p > '9')) {
-                ++p;
-            }
-            CpuTicks cpu_ticks;
-            cpu_ticks.user_ticks += std::strtoull(p, &p, 10);     // 匹配第1个字段user
-            cpu_ticks.user_ticks += std::strtoull(p + 1, &p, 10); // 匹配第2个字段nice
-
-            cpu_ticks.kernel_ticks += std::strtoull(p + 1, &p, 10); // 匹配第3个字段system
-
-            // 跳过第4个字段idle和第5个字段iowait
-            int rem{2};
-            while (rem-- > 0) {
-                p = std::strchr(p + 1, ' ');
-                assert(p != nullptr);
-            }
-
-            cpu_ticks.kernel_ticks += std::strtoull(p + 1, &p, 10); // 匹配第6个字段irq
-            cpu_ticks.kernel_ticks += std::strtoull(p + 1, &p, 10); // 匹配第7个字段softirq
-            return cpu_ticks;
-        }
         // 查找第2个字段的右括号
         char *p{std::strrchr(buf, ')')};
         assert(p != nullptr);
@@ -130,32 +98,133 @@ private:
             p = std::strchr(p + 1, ' ');
             assert(p != nullptr);
         }
-
-        CpuTicks cpu_ticks;
-        cpu_ticks.user_ticks = std::strtoull(p + 1, &p, 10);
+        auto ticks{std::strtoull(p + 1, &p, 10)};
 
         // 匹配第15个字段kernel_ticks
-        cpu_ticks.kernel_ticks = std::strtoull(p + 1, nullptr, 10);
-        return cpu_ticks;
+        ticks += std::strtoull(p + 1, nullptr, 10);
+        return time_point{duration{static_cast<rep>(ticks) * PERIOD_PER_SEC / GetTicksPerSec()}};
     }
 
-    double GetCpuDuration(const CpuTimePoint &cpu_t1) const {
-        if (stat_path_.empty()) {
-            auto spec_t0{std::get<struct timespec>(cpu_t0_)};
-            auto spec_t1{std::get<struct timespec>(cpu_t1)};
-            return (spec_t1.tv_sec - spec_t0.tv_sec) + (spec_t1.tv_nsec - spec_t0.tv_nsec) / 1e9;
-        }
-        // 从文件读取cpu时间可能失败，失败情况返回0
-        auto *cpu_ticks_t0{std::get_if<CpuTicks>(&cpu_t0_)};
-        auto *cpu_ticks_t1{std::get_if<CpuTicks>(&cpu_t1)};
-        if (cpu_ticks_t0 == nullptr || cpu_ticks_t1 == nullptr) {
-            return 0;
-        }
-        return static_cast<double>(cpu_ticks_t1->TotalTicks() - cpu_ticks_t0->TotalTicks()) / GetTicksPerSec();
-    }
-
+private:
     const std::string stat_path_;
-    CpuTimePoint cpu_t0_;
-    std::chrono::steady_clock::time_point elapsed_t0_;
 };
+
+struct SystemCpuClock {
+    using duration = std::chrono::duration<double>;
+    using rep = duration::rep;
+    using period = duration::period;
+    using time_point = std::chrono::time_point<SystemCpuClock, duration>;
+
+    static constexpr bool is_steady{true};
+    static constexpr auto PERIOD_PER_SEC{duration{std::chrono::seconds{1}}.count()}; // 必须是无损转换
+    static time_point now() {
+        // 文件快照(/proc/stat)获取系统级cpu时间，Ticks级精度(约10ms)
+        char buf[512];
+        FILEGuard f("/proc/stat", "r");
+        if (!f) {
+            throw std::runtime_error("");
+        }
+        auto res{std::fgets(buf, sizeof(buf), f.Get())};
+        f.Close();
+        if (res == nullptr) {
+            throw std::runtime_error("");
+        }
+
+        char *p{buf};
+        while ((*p < '0') || (*p > '9')) {
+            ++p;
+        }
+        auto ticks{std::strtoull(p, &p, 10)};  // 匹配第1个字段user
+        ticks += std::strtoull(p + 1, &p, 10); // 匹配第2个字段nice
+        ticks += std::strtoull(p + 1, &p, 10); // 匹配第3个字段system
+
+        // 跳过第4个字段idle和第5个字段iowait
+        int rem{2};
+        while (rem-- > 0) {
+            p = std::strchr(p + 1, ' ');
+            assert(p != nullptr);
+        }
+
+        ticks += std::strtoull(p + 1, &p, 10); // 匹配第6个字段irq
+        ticks += std::strtoull(p + 1, &p, 10); // 匹配第7个字段softirq
+        return time_point{duration{static_cast<rep>(ticks) * PERIOD_PER_SEC / GetTicksPerSec()}};
+    }
+};
+
+template <typename Clock>
+class Timer {
+public:
+    using TimePoint = typename Clock::time_point;
+    using Duration = typename Clock::duration;
+
+    template <typename T = Clock, typename = std::enable_if_t<std::is_default_constructible_v<T>>>
+    Timer() : clock_{}, t_start_{clock_.now()}, t_prev_{t_start_} {}
+
+    template <typename... Args, typename = std::enable_if_t<(sizeof...(Args) > 0)>>
+    explicit Timer(Args &&...args) : clock_{std::forward<Args>(args)...}, t_start_{clock_.now()}, t_prev_{t_start_} {}
+
+    // 重置计时点
+    void Reset() { t_prev_ = clock_.now(); }
+
+    // 计算当前距离前个计时点的耗时，并刷新计时点
+    Duration Lap() {
+        TimePoint t_now{clock_.now()};
+        Duration lap{t_now - t_prev_};
+        t_prev_ = t_now;
+        return lap;
+    }
+
+    // 计算当前距离前个计时点的耗时，不刷新计时点
+    Duration Peek() const { return clock_.now() - t_prev_; }
+    Duration Total() const { return clock_.now() - t_start_; }
+    TimePoint GetStart() const { return t_start_; }
+    TimePoint GetPrev() const { return t_prev_; }
+    const auto &GetClock() const { return clock_; }
+
+private:
+    Clock clock_;
+    TimePoint t_start_;
+    TimePoint t_prev_;
+};
+
+template <typename CpuClock, typename ElapsedClock = std::chrono::steady_clock>
+class CpuTimer {
+public:
+    static_assert(std::is_default_constructible_v<ElapsedClock>);
+    struct Duration {
+        double ElapsedSeconds() const { return std::chrono::duration<double>{elapsed}.count(); }
+        double CpuSeconds() const { return std::chrono::duration<double>{cpu}.count(); }
+        double CpuUsage() const { return CpuSeconds() / ElapsedSeconds(); }
+        double CpuUsagePct() const { return 100 * CpuUsage(); }
+
+        typename Timer<ElapsedClock>::Duration elapsed{};
+        typename Timer<CpuClock>::Duration cpu{};
+    };
+
+    // 先计算开销较小的elapsed_time
+    template <typename T = CpuClock, typename = std::enable_if_t<std::is_default_constructible_v<T>>>
+    CpuTimer() : elapsed_timer_{}, cpu_timer_{} {}
+
+    template <typename... Args, typename = std::enable_if_t<(sizeof...(Args) > 0)>>
+    explicit CpuTimer(Args &&...args) : elapsed_timer_{}, cpu_timer_{std::forward<Args>(args)...} {}
+
+    void Reset() {
+        elapsed_timer_.Reset();
+        cpu_timer_.Reset();
+    }
+
+    Duration Lap() { return {elapsed_timer_.Lap(), cpu_timer_.Lap()}; }
+    Duration Peek() const { return {elapsed_timer_.Peek(), cpu_timer_.Peek()}; }
+    Duration Total() const { return {elapsed_timer_.Total(), cpu_timer_.Total()}; }
+    const auto &GetCpuTimer() const { return cpu_timer_; }
+    const auto &GetElapsedTimer() const { return elapsed_timer_; }
+
+private:
+    Timer<std::chrono::steady_clock> elapsed_timer_;
+    Timer<CpuClock> cpu_timer_;
+};
+
+using SelfCpuTimer = CpuTimer<SelfCpuClock>;
+using PidCpuTimer = CpuTimer<PidCpuClock>;
+using SystemCpuTimer = CpuTimer<SystemCpuClock>;
 } // namespace oops
