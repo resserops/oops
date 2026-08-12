@@ -39,6 +39,7 @@ inline struct Args {
     ProgramType program_type{};
 
     struct {
+        bool system_wide{};
         pid_t pid{};
         double itv{};
     } measure{};
@@ -146,7 +147,11 @@ void RegisterSignalHandler() {
 void Measure() {
     std::cout << std::fixed << std::setprecision(2);
     std::cout << "Pid: " << getpid() << std::endl;
-    std::cout << "Tracked pid: " << ARGS.measure.pid << std::endl;
+    if (ARGS.measure.system_wide) {
+        std::cout << "Tracked pid: system-wide" << std::endl;
+    } else {
+        std::cout << "Tracked pid: " << ARGS.measure.pid << std::endl;
+    }
     std::cout << "Interval: " << ARGS.measure.itv << "s" << std::endl;
     std::cout << "Ticks per sec: " << oops::GetTicksPerSec() << std::endl;
 
@@ -158,44 +163,40 @@ void Measure() {
 
     // 系统时钟盖时间戳，单调时钟算时间差
     auto system_now{std::chrono::system_clock::now()};
-    std::variant<std::monostate, oops::CpuTimer<oops::SystemCpuClock>, oops::CpuTimer<oops::PidCpuClock>> cpu_timer_var;
-    if (ARGS.measure.pid == -1) {
-        cpu_timer_var.emplace<oops::CpuTimer<oops::SystemCpuClock>>();
+    oops::UniCpuClock::Kind cpu_timer_kind;
+    if (ARGS.measure.system_wide) {
+        cpu_timer_kind = oops::UniCpuClock::Kind::SYSTEM;
     } else {
-        cpu_timer_var.emplace<oops::CpuTimer<oops::PidCpuClock>>(ARGS.measure.pid);
+        cpu_timer_kind = oops::UniCpuClock::Kind::PID;
     }
+    oops::UniCpuTimer cpu_timer(cpu_timer_kind, ARGS.measure.pid);
 
     std::cout << "Timestamp: " << TimestampToStr(system_now) << '\n' << std::endl;
     std::size_t step{0};
-    auto start_time{
-        (ARGS.measure.pid == -1)
-            ? std::get<oops::CpuTimer<oops::SystemCpuClock>>(cpu_timer_var).GetElapsedTimer().GetStart()
-            : std::get<oops::CpuTimer<oops::PidCpuClock>>(cpu_timer_var).GetElapsedTimer().GetStart()};
+    auto start_time{cpu_timer.GetElapsedTimer().GetStart()};
     auto next_time{start_time + (step + 1) * itv};
 
     std::cout << "Monitoring results:" << std::endl;
     std::cout << MakeHeaderRow() << std::endl;
 
     std::vector<double> values(oops::ToUnderlying(Metrics::COUNT));
-    while (!STOP.load(std::memory_order_relaxed) && (ProcExist(ARGS.measure.pid) || ARGS.measure.pid == -1)) {
+    while (!STOP.load(std::memory_order_relaxed) && (ARGS.measure.system_wide || ProcExist(ARGS.measure.pid))) {
         std::this_thread::sleep_until(next_time);
 
         // 根据选项配置完成测量
         if (ENABLED_METRIC_GROUP.Test(MetricGroup::CPU)) { // 有限测量区间指标，再测量单点指标
-            double usage_pct{TRY_OR(
-                (ARGS.measure.pid == -1)
-                    ? std::get<oops::CpuTimer<oops::SystemCpuClock>>(cpu_timer_var).Lap().CpuUsagePct()
-                    : std::get<oops::CpuTimer<oops::PidCpuClock>>(cpu_timer_var).Lap().CpuUsagePct(),
-                .0)};
+            double usage_pct{TRY_OR(cpu_timer.Lap().CpuUsagePct(), .0)};
             values[oops::ToUnderlying(Metrics::CPU_USAGE)] = usage_pct;
         }
 
         if (ENABLED_METRIC_GROUP.Test(MetricGroup::MEMORY)) {
-            using namespace oops::proc::status;
-            Info info{Get(ARGS.measure.pid, Field::VM_RSS | Field::VM_HWM | Field::VM_SWAP)};
-            values[oops::ToUnderlying(Metrics::RSS)] = oops::GiBs<double>{oops::KiBs<>{info.vm_rss}}.Count();
-            values[oops::ToUnderlying(Metrics::HWM)] = oops::GiBs<double>{oops::KiBs<>{info.vm_hwm}}.Count();
-            values[oops::ToUnderlying(Metrics::SWAP)] = oops::GiBs<double>{oops::KiBs<>{info.vm_swap}}.Count();
+            if (!ARGS.measure.system_wide) {
+                using namespace oops::proc::status;
+                Info info{Get(ARGS.measure.pid, Field::VM_RSS | Field::VM_HWM | Field::VM_SWAP)};
+                values[oops::ToUnderlying(Metrics::RSS)] = oops::GiBs<double>{oops::KiBs<>{info.vm_rss}}.Count();
+                values[oops::ToUnderlying(Metrics::HWM)] = oops::GiBs<double>{oops::KiBs<>{info.vm_hwm}}.Count();
+                values[oops::ToUnderlying(Metrics::SWAP)] = oops::GiBs<double>{oops::KiBs<>{info.vm_swap}}.Count();
+            }
         }
 
         // 打印测量结果，解耦测量和打印，支撑后续二进制格式
@@ -616,7 +617,10 @@ void ParseArgs(int argc, char *argv[]) {
 
     argparse::ArgumentParser measure{"measure"};
     measure.add_description("measure runtime performance metrics");
-    measure.add_argument("pid").help("target process id to monitor").scan<'i', pid_t>().default_value(pid_t{-1});
+    measure.add_argument("pid")
+        .help("target process id to monitor")
+        .nargs(argparse::nargs_pattern::optional)
+        .scan<'i', pid_t>();
     measure.add_argument("-i", "--itv")
         .help("sampling interval in secondes (e.g., 0.5 for 500ms)")
         .scan<'g', double>()
@@ -661,10 +665,15 @@ void ParseArgs(int argc, char *argv[]) {
         ARGS.program_type = ProgramType::MEASURE;
 
         // pid
-        ARGS.measure.pid = measure.get<pid_t>("pid");
-        if (!ARGS.measure.pid == -1 && !ProcExist(ARGS.measure.pid)) {
-            std::cerr << "Error: process " << ARGS.measure.pid << " not exist" << std::endl;
-            exit(1);
+        if (measure.is_used("pid")) {
+            ARGS.measure.system_wide = false;
+            ARGS.measure.pid = measure.get<pid_t>("pid");
+            if (!ProcExist(ARGS.measure.pid)) {
+                std::cerr << "Error: process " << ARGS.measure.pid << " not exist" << std::endl;
+                exit(1);
+            }
+        } else {
+            ARGS.measure.system_wide = true;
         }
 
         // --itv

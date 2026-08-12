@@ -14,22 +14,22 @@ inline auto GetTicksPerSec() {
     return TICKS_PER_SEC;
 }
 
-// 和chrono::clock定义保持一致
-struct SelfCpuClock {
-    using duration = std::chrono::nanoseconds;
-    using rep = duration::rep;
-    using period = duration::period;
-    using time_point = std::chrono::time_point<SelfCpuClock, duration>;
+template <typename T>
+struct IsTimePoint : std::false_type {};
+template <typename Clock, typename Duration>
+struct IsTimePoint<std::chrono::time_point<Clock, Duration>> : std::true_type {};
+template <typename T>
+constexpr bool IS_TIME_POINT{IsTimePoint<T>::value};
 
-    static constexpr bool is_steady{true};
-    static time_point now() {
-        struct timespec spec;
-        if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &spec) != 0) {
-            throw std::runtime_error("SelfCpuClock::now() failed to get CLOCK_PROCESS_CPUTIME_ID");
-        }
-        return time_point{std::chrono::seconds{spec.tv_sec} + std::chrono::nanoseconds{spec.tv_nsec}};
-    }
-};
+template <typename Dst, typename Src>
+constexpr Dst TimePointCast(const Src &src) noexcept {
+    static_assert(IS_TIME_POINT<Src>, "source type must be a std::chrono::time_point");
+    static_assert(IS_TIME_POINT<Dst>, "destination type must be a std::chrono::time_point");
+
+    auto src_duration{src.time_since_epoch()}; // 获取时间起点epoch至时间点src的时间间隔
+    auto dst_duration{std::chrono::duration_cast<typename Dst::duration>(src_duration)};
+    return Dst{dst_duration};
+}
 
 class FILEGuard {
 public:
@@ -61,6 +61,23 @@ public:
 
 private:
     std::FILE *f_{nullptr};
+};
+
+// 定义不同维度的CpuClock，接口和chrono::clock保持一致
+struct SelfCpuClock {
+    using duration = std::chrono::nanoseconds;
+    using rep = duration::rep;
+    using period = duration::period;
+    using time_point = std::chrono::time_point<SelfCpuClock, duration>;
+
+    static constexpr bool is_steady{true};
+    static time_point now() {
+        struct timespec spec;
+        if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &spec) != 0) {
+            throw std::runtime_error("SelfCpuClock::now() failed to get CLOCK_PROCESS_CPUTIME_ID");
+        }
+        return time_point{std::chrono::seconds{spec.tv_sec} + std::chrono::nanoseconds{spec.tv_nsec}};
+    }
 };
 
 class PidCpuClock {
@@ -151,6 +168,48 @@ struct SystemCpuClock {
     }
 };
 
+class UniCpuClock {
+public:
+    using duration = std::chrono::duration<double>;
+    using rep = duration::rep;
+    using period = duration::period;
+    using time_point = std::chrono::time_point<UniCpuClock, duration>;
+    using CpuClockVar = std::variant<SelfCpuClock, PidCpuClock, SystemCpuClock>;
+
+    static constexpr bool is_steady{true};
+    enum class Kind : uint8_t { SELF, PID, SYSTEM };
+
+    UniCpuClock() : kind_{Kind::SELF}, clock_{SelfCpuClock{}} {}
+    explicit UniCpuClock(Kind kind, pid_t pid = 0) : kind_{kind} {
+        switch (kind) {
+        case Kind::SELF: {
+            clock_.emplace<SelfCpuClock>();
+            break;
+        }
+        case Kind::SYSTEM: {
+            clock_.emplace<SystemCpuClock>();
+            break;
+        }
+        case Kind::PID: {
+            if (pid <= 0) {
+                throw std::invalid_argument("invalid pid " + std::to_string(pid));
+            }
+            clock_.emplace<PidCpuClock>(pid);
+            break;
+        }
+        }
+    }
+
+    time_point now() const {
+        return std::visit([](const auto &clock) { return TimePointCast<time_point>(clock.now()); }, clock_);
+    }
+
+private:
+    Kind kind_;
+    CpuClockVar clock_;
+};
+
+// 定义相关定时器
 template <typename Clock>
 class Timer {
 public:
@@ -160,8 +219,9 @@ public:
     template <typename T = Clock, typename = std::enable_if_t<std::is_default_constructible_v<T>>>
     Timer() : clock_{}, t_start_{clock_.now()}, t_prev_{t_start_} {}
 
-    template <typename... Args, typename = std::enable_if_t<(sizeof...(Args) > 0)>>
-    explicit Timer(Args &&...args) : clock_{std::forward<Args>(args)...}, t_start_{clock_.now()}, t_prev_{t_start_} {}
+    template <typename... ClockArgs, typename = std::enable_if_t<(sizeof...(ClockArgs) > 0)>>
+    explicit Timer(ClockArgs &&...clock_args)
+        : clock_{std::forward<ClockArgs>(clock_args)...}, t_start_{clock_.now()}, t_prev_{t_start_} {}
 
     // 重置计时点
     void Reset() { t_prev_ = clock_.now(); }
@@ -205,8 +265,9 @@ public:
     template <typename T = CpuClock, typename = std::enable_if_t<std::is_default_constructible_v<T>>>
     CpuTimer() : elapsed_timer_{}, cpu_timer_{} {}
 
-    template <typename... Args, typename = std::enable_if_t<(sizeof...(Args) > 0)>>
-    explicit CpuTimer(Args &&...args) : elapsed_timer_{}, cpu_timer_{std::forward<Args>(args)...} {}
+    template <typename... ClockArgs, typename = std::enable_if_t<(sizeof...(ClockArgs) > 0)>>
+    explicit CpuTimer(ClockArgs &&...clock_args)
+        : elapsed_timer_{}, cpu_timer_{std::forward<ClockArgs>(clock_args)...} {}
 
     void Reset() {
         elapsed_timer_.Reset();
@@ -227,4 +288,5 @@ private:
 using SelfCpuTimer = CpuTimer<SelfCpuClock>;
 using PidCpuTimer = CpuTimer<PidCpuClock>;
 using SystemCpuTimer = CpuTimer<SystemCpuClock>;
+using UniCpuTimer = CpuTimer<UniCpuClock>;
 } // namespace oops
