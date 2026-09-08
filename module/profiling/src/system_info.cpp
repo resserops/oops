@@ -42,7 +42,7 @@ std::string GetCmdOutput(const std::string &cmd) {
 
 // 解析和格式化字段的特化注册
 template <typename T>
-bool ParseField(std::string_view s, T &t, std::string_view ctx = "{}") {
+bool ParseField(std::string_view s, T &t, std::string_view ctx) {
     auto scan_res{scn::scan<T>(s, ctx)};
     if (scan_res) {
         t = scan_res->value();
@@ -51,28 +51,23 @@ bool ParseField(std::string_view s, T &t, std::string_view ctx = "{}") {
 }
 
 template <typename T>
-std::string FormatField(const T &t, std::string_view ctx = "{}") {
+std::string FormatField(const T &t, std::string_view ctx) {
     return fmt::format(ctx, t);
 }
 
-// std::string特化：默认ctx升级为整行scanset，避免空格截断（如model name）
 template <>
-bool ParseField(std::string_view s, std::string &t, std::string_view ctx) {
-    auto scan_res{scn::scan<std::string>(s, ctx == "{}" ? std::string_view{"{:[^\n]}"} : ctx)};
-    if (scan_res) {
-        t = std::move(scan_res->value());
-    }
-    return bool{scan_res};
+bool ParseField(std::string_view s, std::string &t, std::string_view) {
+    t = s;
+    return true;
 }
 
-// std::vector<std::string>特化：空格分割的标志列表（如cpuinfo的flags）
 template <>
 bool ParseField(std::string_view s, std::vector<std::string> &v, std::string_view) {
     v.clear();
     for (auto token : Split(s)) {
         v.emplace_back(token);
     }
-    return !v.empty();
+    return true;
 }
 
 template <>
@@ -89,29 +84,49 @@ std::string FormatField(const std::vector<std::string> &v, std::string_view) {
     return s;
 }
 
-// bool特化：scn支持0/1/true/false，补充yes/no形式（如cpuinfo的fpu字段）
+// bool特化，支持在ctx中定义代表true和false的字符串，例如"true/false"或"yes/no"
 template <>
 bool ParseField(std::string_view s, bool &b, std::string_view ctx) {
-    auto scan_res{scn::scan<bool>(s, ctx)};
-    if (scan_res) {
-        b = scan_res->value();
-        return true;
+    s = Strip(s);
+
+    // 默认值
+    std::string_view t{"1"};
+    std::string_view f{"0"};
+
+    auto pos{ctx.find('/')};
+    if (pos != std::string_view::npos) {
+        t = Strip(ctx.substr(0, pos));
+        f = Strip(ctx.substr(pos + 1));
     }
-    std::string_view v{Strip(s)};
-    if (v == "yes") {
+
+    if (s == t) {
         b = true;
         return true;
     }
-    if (v == "no") {
+    if (s == f) {
         b = false;
         return true;
     }
     return false;
 }
 
+template <>
+std::string FormatField(const bool &b, std::string_view ctx) {
+    // 默认值
+    std::string_view t{"1"};
+    std::string_view f{"0"};
+
+    auto pos{ctx.find('/')};
+    if (pos != std::string_view::npos) {
+        t = Strip(ctx.substr(0, pos));
+        f = Strip(ctx.substr(pos + 1));
+    }
+    return std::string{b ? t : f};
+}
+
 // Storage特化
 template <typename R, typename P>
-bool ParseField(std::string_view s, Storage<R, P> &storage, std::string_view ctx = "{}") {
+bool ParseField(std::string_view s, Storage<R, P> &storage, std::string_view ctx) {
     R r{};
     auto res{ParseField<R>(s, r, ctx)};
     storage = Storage<R, P>{r};
@@ -119,7 +134,7 @@ bool ParseField(std::string_view s, Storage<R, P> &storage, std::string_view ctx
 }
 
 template <typename R, typename P>
-std::string FormatField(const Storage<R, P> &storage, std::string_view ctx = "{}") {
+std::string FormatField(const Storage<R, P> &storage, std::string_view ctx) {
     return FormatField(storage.Count(), ctx);
 }
 
@@ -254,12 +269,11 @@ public:
             }
 
             std::string_view value{Strip(line.substr(pos + 1))};
-            if (value.empty()) {
-                continue;
+            if (ParseMemberPtrVar(value, it->member_ptr_var, object, it->parse_ctx)) {
+                parsed |= it->field;
+            } else {
+                std::cerr << "Error: parse field '" << it->key << "' with value '" << value << "' failed" << std::endl;
             }
-
-            ParseMemberPtrVar(value, it->member_ptr_var, object, it->parse_ctx);
-            parsed |= it->field;
             if (parsed == field_mask) {
                 break; // 已解析全量
             }
@@ -276,18 +290,15 @@ public:
         return parsed;
     }
 
-    // key-value渲染不是表格，不做列对齐，统一规则：key + delim + 空格 + value（+ 空格 + suffix）
     void Format(std::ostream &os, const Struct &object, const EnumBitset<Field> &field_mask = ~EnumBitset<Field>{}) {
         for (const auto &entry : field_table_) {
             if (field_mask.Test(entry.field)) {
                 std::string value{FormatMemberPtrVar(entry.member_ptr_var, object, entry.format_ctx)};
-                if (!value.empty()) {
-                    os << entry.key << delim_ << ' ' << value;
-                    if (!entry.suffix.empty()) {
-                        os << ' ' << entry.suffix;
-                    }
-                    os << '\n';
+                os << entry.key << delim_ << ' ' << value;
+                if (!entry.suffix.empty()) {
+                    os << ' ' << entry.suffix;
                 }
+                os << '\n';
             }
         }
     }
@@ -585,10 +596,10 @@ KeyValueParser<
          {Field::CPU_CORES, "cpu cores", &Entry::cpu_cores},
          {Field::APICID, "apicid", &Entry::apicid},
          {Field::INITIAL_APICID, "initial apicid", &Entry::initial_apicid},
-         {Field::FPU, "fpu", &Entry::fpu},
-         {Field::FPU_EXCEPTION, "fpu_exception", &Entry::fpu_exception},
+         {Field::FPU, "fpu", &Entry::fpu, "", "yes/no", "yes/no"},
+         {Field::FPU_EXCEPTION, "fpu_exception", &Entry::fpu_exception, "", "yes/no", "yes/no"},
          {Field::CPUID_LEVEL, "cpuid level", &Entry::cpuid_level},
-         {Field::WP, "wp", &Entry::wp},
+         {Field::WP, "wp", &Entry::wp, "", "yes/no", "yes/no"},
          {Field::FLAGS, "flags", &Entry::flags},
          {Field::BUGS, "bugs", &Entry::bugs},
          {Field::BOGOMIPS, "bogomips", &Entry::bogomips},
@@ -611,6 +622,8 @@ Info Get(std::istream &is, const FieldMask &field_mask) {
 }
 
 Info Get() { return Get(~FieldMask{}); }
+
+Info Get(std::istream &is) { return Get(is, ~FieldMask{}); }
 
 Info Get(const FieldMask &field_mask) {
     std::ifstream ifs("/proc/cpuinfo");

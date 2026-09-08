@@ -33,6 +33,10 @@ if(ENABLE_TEST)
     add_library(oops_profiling_test_o OBJECT ${TEST_SRC})
     target_link_libraries(oops_profiling_test_o PRIVATE oops_profiling_i gtest)
 
+    # 用例路径定义
+    set(OOPS_PROFILING_CASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/test/case")
+    target_compile_definitions(oops_profiling_test_o PRIVATE "OOPS_PROFILING_CASE_DIR=\"${OOPS_PROFILING_CASE_DIR}\"")
+
     # 构建模块测试程序
     add_executable(oops_profiling_test)
     set_target_properties(oops_profiling_test PROPERTIES OUTPUT_NAME test_profiling)
