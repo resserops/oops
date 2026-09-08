@@ -7,7 +7,7 @@
 using namespace oops;
 namespace fs = std::filesystem;
 
-inline const fs::path CASE_DIR{OOPS_CASE_DIR};
+inline const fs::path CASE_DIR{OOPS_MATRIX_CASE_DIR};
 
 TEST(Coo, ReadCoo) {
     std::ifstream iss(CASE_DIR / "m_coo_real_sym.mtx");

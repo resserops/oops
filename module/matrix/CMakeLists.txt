@@ -28,8 +28,8 @@ if(ENABLE_TEST)
     target_link_libraries(oops_matrix_test_o PRIVATE oops_matrix_i gtest gmock)
 
     # 用例路径定义
-    set(OOPS_CASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/test/case")
-    target_compile_definitions(oops_matrix_test_o PRIVATE "OOPS_CASE_DIR=\"${OOPS_CASE_DIR}\"")
+    set(OOPS_MATRIX_CASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/test/case")
+    target_compile_definitions(oops_matrix_test_o PRIVATE "OOPS_MATRIX_CASE_DIR=\"${OOPS_MATRIX_CASE_DIR}\"")
 
     # 构建模块测试程序
     add_executable(oops_matrix_test)

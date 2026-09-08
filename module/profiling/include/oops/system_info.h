@@ -323,6 +323,7 @@ struct Info {
 
 [[nodiscard]] Info Get();
 [[nodiscard]] Info Get(const FieldMask &field_mask);
+[[nodiscard]] Info Get(std::istream &is);
 [[nodiscard]] Info Get(std::istream &is, const FieldMask &field_mask);
 std::ostream &operator<<(std::ostream &os, const Info &info);
 } // namespace cpuinfo

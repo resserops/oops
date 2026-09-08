@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <limits>
@@ -217,7 +218,17 @@ std::string ToLower(std::string_view s) noexcept;
 std::string ToUpper(std::string_view s) noexcept;
 
 std::string Repeat(const std::string &str, std::size_t n);
-std::string Elide(std::string_view s, std::size_t n);
+
+template <typename Pred>
+std::string RemoveIf(std::string_view s, Pred &&pred) {
+    std::string res{s};
+    res.erase(std::remove_if(res.begin(), res.end(), std::forward<Pred>(pred)), res.end());
+    return res;
+}
+
+inline std::string Remove(std::string_view s, std::string_view chars = SPACE) {
+    return RemoveIf(s, [&chars](char c) { return chars.find(c) != std::string_view::npos; });
+}
 
 // 后续使用lexcial_cast替代
 template <typename T>
