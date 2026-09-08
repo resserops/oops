@@ -55,6 +55,60 @@ std::string FormatField(const T &t, std::string_view ctx = "{}") {
     return fmt::format(ctx, t);
 }
 
+// std::string特化：默认ctx升级为整行scanset，避免空格截断（如model name）
+template <>
+bool ParseField(std::string_view s, std::string &t, std::string_view ctx) {
+    auto scan_res{scn::scan<std::string>(s, ctx == "{}" ? std::string_view{"{:[^\n]}"} : ctx)};
+    if (scan_res) {
+        t = std::move(scan_res->value());
+    }
+    return bool{scan_res};
+}
+
+// std::vector<std::string>特化：空格分割的标志列表（如cpuinfo的flags）
+template <>
+bool ParseField(std::string_view s, std::vector<std::string> &v, std::string_view) {
+    v.clear();
+    for (auto token : Split(s)) {
+        v.emplace_back(token);
+    }
+    return !v.empty();
+}
+
+template <>
+std::string FormatField(const std::vector<std::string> &v, std::string_view) {
+    std::string s;
+    s.reserve(64); // one cache line
+    for (const auto &item : v) {
+        s += item;
+        s += ' ';
+    }
+    if (!s.empty()) {
+        s.pop_back();
+    }
+    return s;
+}
+
+// bool特化：scn支持0/1/true/false，补充yes/no形式（如cpuinfo的fpu字段）
+template <>
+bool ParseField(std::string_view s, bool &b, std::string_view ctx) {
+    auto scan_res{scn::scan<bool>(s, ctx)};
+    if (scan_res) {
+        b = scan_res->value();
+        return true;
+    }
+    std::string_view v{Strip(s)};
+    if (v == "yes") {
+        b = true;
+        return true;
+    }
+    if (v == "no") {
+        b = false;
+        return true;
+    }
+    return false;
+}
+
 // Storage特化
 template <typename R, typename P>
 bool ParseField(std::string_view s, Storage<R, P> &storage, std::string_view ctx = "{}") {
@@ -137,6 +191,8 @@ public:
         std::string key;
         MemberPtrVar member_ptr_var;
         std::string suffix{};
+        std::string parse_ctx{"{}"};  // scn格式串，如microcode的"{:x}"
+        std::string format_ctx{"{}"}; // fmt格式串，如microcode的"{:#x}"
     };
 
     explicit KeyValueParser(std::initializer_list<Entry> entries) : field_table_{entries} {}
@@ -147,18 +203,18 @@ public:
     KeyValueParser(std::initializer_list<Entry> entries, std::string delim, bool (*stop)(std::string_view))
         : field_table_{entries}, delim_{std::move(delim)}, stop_{stop} {}
 
-    static bool ParseMemberPtrVar(std::string_view s, MemberPtrVar member_ptr_var, Struct &obj) {
-        auto f = [s, &obj](auto member_ptr) {
+    static bool ParseMemberPtrVar(std::string_view s, MemberPtrVar member_ptr_var, Struct &obj, std::string_view ctx) {
+        auto f = [s, &obj, ctx](auto member_ptr) {
             auto &member{obj.*member_ptr};
-            return ParseField(s, member, "{}");
+            return ParseField(s, member, ctx);
         };
         return std::visit(f, member_ptr_var);
     }
 
-    static std::string FormatMemberPtrVar(MemberPtrVar member_ptr_var, const Struct &obj) {
-        auto f = [&obj](auto member_ptr) -> std::string {
+    static std::string FormatMemberPtrVar(MemberPtrVar member_ptr_var, const Struct &obj, std::string_view ctx) {
+        auto f = [&obj, ctx](auto member_ptr) -> std::string {
             auto &member{obj.*member_ptr};
-            return FormatField(member, "{}");
+            return FormatField(member, ctx);
         };
         return std::visit(f, member_ptr_var);
     }
@@ -202,7 +258,7 @@ public:
                 continue;
             }
 
-            ParseMemberPtrVar(value, it->member_ptr_var, object);
+            ParseMemberPtrVar(value, it->member_ptr_var, object, it->parse_ctx);
             parsed |= it->field;
             if (parsed == field_mask) {
                 break; // 已解析全量
@@ -220,17 +276,20 @@ public:
         return parsed;
     }
 
+    // key-value渲染不是表格，不做列对齐，统一规则：key + delim + 空格 + value（+ 空格 + suffix）
     void Format(std::ostream &os, const Struct &object, const EnumBitset<Field> &field_mask = ~EnumBitset<Field>{}) {
-        FTable ftable;
         for (const auto &entry : field_table_) {
             if (field_mask.Test(entry.field)) {
-                std::string value{FormatMemberPtrVar(entry.member_ptr_var, object)};
+                std::string value{FormatMemberPtrVar(entry.member_ptr_var, object, entry.format_ctx)};
                 if (!value.empty()) {
-                    ftable.AppendRow(std::string{entry.key} + delim_, value, entry.suffix);
+                    os << entry.key << delim_ << ' ' << value;
+                    if (!entry.suffix.empty()) {
+                        os << ' ' << entry.suffix;
+                    }
+                    os << '\n';
                 }
             }
         }
-        os << ftable;
     }
 
 private:
@@ -402,7 +461,7 @@ KeyValueParser<VmaExt, Field, TypeList<KiBs<std::size_t>, bool, decltype(VmaExt:
 
 Info Get(std::istream &is, const FieldMask &field_mask) {
     Info info;
-    while (!is.eof()) {
+    while (is.peek() != EOF) {
         VmaExt vma_ext;
         if (field_mask.Test(Field::VMA)) {
             auto res{maps::ParseVma(is)};
@@ -507,6 +566,65 @@ std::ostream &operator<<(std::ostream &os, const Info &info) {
 namespace numa_maps {
 // TODO(resserops): 补充实现
 } // namespace numa_maps
+namespace cpuinfo {
+KeyValueParser<
+    Entry, Field, TypeList<std::size_t, double, std::string, bool, KiBs<std::size_t>, std::vector<std::string>>>
+    kvparser{
+        {{Field::PROCESSOR, "processor", &Entry::processor},
+         {Field::VENDOR_ID, "vendor_id", &Entry::vendor_id},
+         {Field::CPU_FAMILY, "cpu family", &Entry::cpu_family},
+         {Field::MODEL, "model", &Entry::model},
+         {Field::MODEL_NAME, "model name", &Entry::model_name},
+         {Field::STEPPING, "stepping", &Entry::stepping},
+         {Field::MICROCODE, "microcode", &Entry::microcode, "", "{:x}", "{:#x}"},
+         {Field::CPU_MHZ, "cpu MHz", &Entry::cpu_mhz},
+         {Field::CACHE_SIZE, "cache size", &Entry::cache_size, "KB"},
+         {Field::PHYSICAL_ID, "physical id", &Entry::physical_id},
+         {Field::SIBLINGS, "siblings", &Entry::siblings},
+         {Field::CORE_ID, "core id", &Entry::core_id},
+         {Field::CPU_CORES, "cpu cores", &Entry::cpu_cores},
+         {Field::APICID, "apicid", &Entry::apicid},
+         {Field::INITIAL_APICID, "initial apicid", &Entry::initial_apicid},
+         {Field::FPU, "fpu", &Entry::fpu},
+         {Field::FPU_EXCEPTION, "fpu_exception", &Entry::fpu_exception},
+         {Field::CPUID_LEVEL, "cpuid level", &Entry::cpuid_level},
+         {Field::WP, "wp", &Entry::wp},
+         {Field::FLAGS, "flags", &Entry::flags},
+         {Field::BUGS, "bugs", &Entry::bugs},
+         {Field::BOGOMIPS, "bogomips", &Entry::bogomips},
+         {Field::CLFLUSH_SIZE, "clflush size", &Entry::clflush_size},
+         {Field::CACHE_ALIGNMENT, "cache_alignment", &Entry::cache_alignment},
+         {Field::ADDRESS_SIZES, "address sizes", &Entry::address_sizes},
+         {Field::POWER_MANAGEMENT, "power management", &Entry::power_management}},
+        ":",
+        [](std::string_view s) { return s.empty(); }};
+
+Info Get(std::istream &is, const FieldMask &field_mask) {
+    Info info;
+    while (is.peek() != EOF) {
+        Entry processor;
+        processor.parsed |= kvparser.Parse(is, processor, field_mask);
+        info.table.push_back(std::move(processor));
+        is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    return info;
+}
+
+Info Get() { return Get(~FieldMask{}); }
+
+Info Get(const FieldMask &field_mask) {
+    std::ifstream ifs("/proc/cpuinfo");
+    return Get(ifs, field_mask);
+}
+
+std::ostream &operator<<(std::ostream &os, const Info &info) {
+    for (const auto &processor : info.table) {
+        kvparser.Format(os, processor, processor.parsed);
+        os << '\n';
+    }
+    return os;
+}
+} // namespace cpuinfo
 } // namespace proc
 namespace lscpu {
 KeyValueParser<Info, Field, TypeList<std::size_t, double, std::string>> kvparser{

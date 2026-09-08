@@ -54,3 +54,20 @@ TEST(ProfilingSystemInfo, SmapsRollup) {
     using namespace oops;
     std::cout << proc::smaps_rollup::Get();
 }
+
+TEST(ProfilingSystemInfo, Cpuinfo) {
+    using namespace oops;
+    std::cout << proc::cpuinfo::Get();
+}
+
+TEST(ProfilingSystemInfo, Cpuinfo2) {
+    using namespace oops;
+    // 主频监视典型用法：只提取processor和cpu MHz
+    auto info = proc::cpuinfo::Get(proc::cpuinfo::Field::PROCESSOR | proc::cpuinfo::Field::CPU_MHZ);
+    for (const auto &entry : info.table) {
+        ASSERT_TRUE(entry.parsed.Test(proc::cpuinfo::Field::PROCESSOR));
+        ASSERT_TRUE(entry.parsed.Test(proc::cpuinfo::Field::CPU_MHZ));
+        ASSERT_GT(entry.cpu_mhz, 0);
+    }
+    std::cout << info;
+}
