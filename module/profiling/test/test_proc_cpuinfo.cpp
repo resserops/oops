@@ -1,15 +1,14 @@
-#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
-#include <thread>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "gtest/gtest.h"
 
-#include "oops/cpu_timer.h"
+#include "oops/proc/cpuinfo.h"
 #include "oops/str.h"
-#include "oops/system_info.h"
 
 namespace fs = std::filesystem;
 static const fs::path CASE_DIR{OOPS_PROFILING_CASE_DIR};
@@ -24,56 +23,7 @@ static std::vector<std::string> SplitAndSqueezeLines(std::string_view s) {
     return res;
 }
 
-TEST(ProfilingSystemInfo, Status) {
-    using namespace oops::proc;
-    auto t1 = std::chrono::steady_clock::now();
-    auto k = status::Get();
-    auto t2 = std::chrono::steady_clock::now();
-    std::cout << "Time: " << std::chrono::duration<double>{t2 - t1}.count() << std::endl;
-    std::cout << k << std::endl;
-}
-
-TEST(ProfilingSystemInfo, Status2) {
-    using namespace oops::proc;
-    auto t1 = std::chrono::steady_clock::now();
-    auto k = status::Get(status::Field::VM_RSS | status::Field::VM_HWM);
-    auto t2 = std::chrono::steady_clock::now();
-    std::cout << "Time: " << std::chrono::duration<double>{t2 - t1}.count() << std::endl;
-    std::cout << k << std::endl;
-}
-
-TEST(ProfilingSystemInfo, Status3) {
-    using namespace oops::proc;
-    auto t1 = std::chrono::steady_clock::now();
-    auto k = status::Get();
-    auto t2 = std::chrono::steady_clock::now();
-    std::cout << "Time: " << std::chrono::duration<double>{t2 - t1}.count() << std::endl;
-    std::cout << k << std::endl;
-}
-
-TEST(ProfilingSystemInfo, Lscpu) {
-    using namespace oops;
-    std::cout << lscpu::Get();
-}
-
-TEST(ProfilingSystemInfo, Maps) {
-    using namespace oops;
-    std::cout << proc::maps::Get();
-}
-
-TEST(ProfilingSystemInfo, Smaps) {
-    using namespace oops;
-    std::cout << proc::smaps::Get(proc::smaps::Field::VMA);
-    std::cout << proc::smaps::Get(proc::smaps::Field::RSS);
-    std::cout << proc::smaps::Get(proc::smaps::Field::RSS | proc::smaps::Field::VMA);
-}
-
-TEST(ProfilingSystemInfo, SmapsRollup) {
-    using namespace oops;
-    std::cout << proc::smaps_rollup::Get();
-}
-
-TEST(ProfilingSystemInfo, CpuinfoParse) {
+TEST(ProfilingCpuinfo, CpuinfoParse) {
     namespace cpuinfo = oops::proc::cpuinfo;
 
     const fs::path CPUINFO_CASE{CASE_DIR / "iZbp159dyz8itphnzxoylkZ" / "cpuinfo.txt"};
@@ -130,7 +80,7 @@ TEST(ProfilingSystemInfo, CpuinfoParse) {
     }
 }
 
-TEST(ProfilingSystemInfo, CpuinfoFormat) {
+TEST(ProfilingCpuinfo, CpuinfoFormat) {
     namespace cpuinfo = oops::proc::cpuinfo;
 
     const fs::path CPUINFO_CASE{CASE_DIR / "iZbp159dyz8itphnzxoylkZ" / "cpuinfo.txt"};
