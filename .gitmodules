@@ -10,9 +10,3 @@
 [submodule "third_party/scnlib"]
 	path = third_party/scnlib
 	url = https://github.com/eliaskosunen/scnlib.git
-[submodule "third_party/glob"]
-	path = third_party/glob
-	url = https://github.com/p-ranav/glob.git
-[submodule "third_party/pybind11"]
-	path = third_party/pybind11
-	url = https://github.com/pybind/pybind11.git

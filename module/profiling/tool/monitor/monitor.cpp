@@ -16,7 +16,7 @@
 #include "oops/cpu_timer.h"
 #include "oops/enum_bitset.h"
 #include "oops/once.h"
-#include "oops/proc/pid/status.h"
+#include "oops/proc/task/status.h"
 #include "oops/str.h"
 #include "oops/unit.h"
 
@@ -159,7 +159,7 @@ void Measure() {
 
         if (ENABLED_METRIC_GROUP.Test(MetricGroup::MEMORY)) {
             if (!ARGS.system_wide) {
-                using namespace oops::proc::pid::status;
+                using namespace oops::proc::task::status;
                 Info info{Get(ARGS.pid, Field::VM_RSS | Field::VM_HWM | Field::VM_SWAP)};
                 values[oops::ToUnderlying(Metrics::RSS)] = oops::GiBs<double>{oops::KiBs<>{info.vm_rss}}.Count();
                 values[oops::ToUnderlying(Metrics::HWM)] = oops::GiBs<double>{oops::KiBs<>{info.vm_hwm}}.Count();

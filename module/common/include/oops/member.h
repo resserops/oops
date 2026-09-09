@@ -1,5 +1,4 @@
 #pragma once
-
 #define OOPS_HAS_MEMBER(class, member)                                             \
     []() constexpr {                                                               \
         constexpr auto trait{::oops::impl::MemberTrait(                            \

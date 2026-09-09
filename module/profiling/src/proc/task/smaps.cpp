@@ -1,4 +1,4 @@
-#include "oops/proc/pid/smaps.h"
+#include "oops/proc/task/smaps.h"
 
 #include <algorithm>
 #include <fstream>
@@ -15,9 +15,9 @@
 #include "oops/str.h"
 
 namespace oops {
-// proc::pid::smaps::VmaExt::VmFlags特化
+// proc::task::smaps::VmaExt::VmFlags特化
 struct VmFlagsEntry {
-    using VmFlags = proc::pid::smaps::VmaExt::VmFlags;
+    using VmFlags = proc::task::smaps::VmaExt::VmFlags;
     std::string_view key;
     void (*set)(VmFlags &);
     bool (*get)(const VmFlags &);
@@ -35,7 +35,7 @@ constexpr VmFlagsEntry VM_FLAGS_TABLE[]{ENTRY(rd), ENTRY(wr), ENTRY(ex), ENTRY(s
 #undef ENTRY
 
 template <>
-bool ParseField(std::string_view s, proc::pid::smaps::VmaExt::VmFlags &vm_flags, std::string_view) {
+bool ParseField(std::string_view s, proc::task::smaps::VmaExt::VmFlags &vm_flags, std::string_view) {
     bool failed{false};
     for (auto token : Split(s)) {
         auto it{std::find_if(
@@ -50,7 +50,7 @@ bool ParseField(std::string_view s, proc::pid::smaps::VmaExt::VmFlags &vm_flags,
 }
 
 template <>
-std::string FormatField(const proc::pid::smaps::VmaExt::VmFlags &vm_flags, std::string_view) {
+std::string FormatField(const proc::task::smaps::VmaExt::VmFlags &vm_flags, std::string_view) {
     std::string s;
     s.reserve(64); // one cache line
     for (const auto &item : VM_FLAGS_TABLE) {
@@ -66,7 +66,7 @@ std::string FormatField(const proc::pid::smaps::VmaExt::VmFlags &vm_flags, std::
 }
 
 namespace proc {
-namespace pid {
+namespace task {
 namespace smaps {
 namespace {
 KeyValueParser<VmaExt, Field, meta::TypeList<KiBs<std::size_t>, bool, decltype(VmaExt::vm_flags)>> kvparser{
@@ -98,12 +98,19 @@ KeyValueParser<VmaExt, Field, meta::TypeList<KiBs<std::size_t>, bool, decltype(V
     [](std::string_view s) { return s.find('-') != std::string_view::npos; }};
 } // namespace
 
+Info Get() { return Get(~FieldMask{}); }
+Info Get(const FieldMask &field_mask) {
+    std::ifstream ifs("/proc/self/smaps");
+    return Get(ifs, field_mask);
+}
+
+Info Get(std::istream &is) { return Get(is, ~FieldMask{}); }
 Info Get(std::istream &is, const FieldMask &field_mask) {
     Info info;
     while (is.peek() != EOF) {
         VmaExt vma_ext;
         if (field_mask.Test(Field::VMA)) {
-            auto res{maps::ParseVma(is)};
+            auto res{ParseVma(is)};
             if (res) {
                 vma_ext.vma = std::move(res.vma);
                 vma_ext.parsed.Set(Field::VMA);
@@ -117,29 +124,28 @@ Info Get(std::istream &is, const FieldMask &field_mask) {
     return info;
 }
 
-Info Get() { return Get(~FieldMask{}); }
 Info Get(pid_t pid) { return Get(pid, ~FieldMask{}); }
-
-Info Get(const FieldMask &field_mask) {
-    std::ifstream ifs("/proc/self/smaps");
+Info Get(pid_t pid, const FieldMask &field_mask) {
+    std::ifstream ifs(fmt::format("/proc/{}/smaps", pid));
     return Get(ifs, field_mask);
 }
 
-Info Get(pid_t pid, const FieldMask &field_mask) {
-    std::ifstream ifs(fmt::format("/proc/{}/smaps", pid));
+Info Get(pid_t pid, pid_t tid) { return Get(pid, tid, ~FieldMask{}); }
+Info Get(pid_t pid, pid_t tid, const FieldMask &field_mask) {
+    std::ifstream ifs(fmt::format("/proc/{}/task/{}/smaps", pid, tid));
     return Get(ifs, field_mask);
 }
 
 std::ostream &operator<<(std::ostream &os, const Info &info) {
     for (const auto &vma_ext : info.vma_table) {
         if (vma_ext.parsed.Test(Field::VMA)) {
-            maps::FormatVma(os, vma_ext.vma);
+            FormatVma(os, vma_ext.vma);
         }
         kvparser.Format(os, vma_ext, vma_ext.parsed);
     }
     return os;
 }
 } // namespace smaps
-} // namespace pid
+} // namespace task
 } // namespace proc
 } // namespace oops

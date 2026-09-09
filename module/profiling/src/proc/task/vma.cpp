@@ -1,6 +1,5 @@
-#include "oops/proc/pid/maps.h"
+#include "oops/proc/task/vma.h"
 
-#include <fstream>
 #include <istream>
 #include <ostream>
 #include <string>
@@ -15,8 +14,7 @@
 
 namespace oops {
 namespace proc {
-namespace pid {
-namespace maps {
+namespace task {
 std::uint32_t Vma::MajorDev() const { return major(dev); }
 std::uint32_t Vma::MinorDev() const { return minor(dev); }
 
@@ -75,32 +73,6 @@ void FormatVma(std::ostream &os, const Vma &vma) {
     }
     os << "\n";
 }
-
-Info Get(std::istream &is) {
-    Info info;
-    while (auto res{maps::ParseVma(is)}) {
-        info.vma_table.push_back(std::move(res.vma));
-    }
-    return info;
-}
-
-Info Get() {
-    std::ifstream ifs("/proc/self/maps");
-    return Get(ifs);
-}
-
-Info Get(pid_t pid) {
-    std::ifstream ifs(fmt::format("/proc/{}/maps", pid));
-    return Get(ifs);
-}
-
-std::ostream &operator<<(std::ostream &os, const Info &info) {
-    for (const auto &vma : info.vma_table) {
-        FormatVma(os, vma);
-    }
-    return os;
-}
-} // namespace maps
-} // namespace pid
+} // namespace task
 } // namespace proc
 } // namespace oops

@@ -1,19 +1,15 @@
 #pragma once
-
 #include <cstdint>
 #include <iosfwd>
 #include <string>
-#include <vector>
 
-#include <sys/types.h> // 提供内核数据结构
+#include <sys/types.h>
 
 namespace oops {
 namespace proc {
-namespace pid {
-namespace maps {
-// vma数据结构，maps, smaps, smaps_rollup共用
+namespace task {
 struct Vma {
-    std::size_t Size() const { return static_cast<std::size_t>(address.start - address.end); }
+    std::size_t Size() const { return static_cast<std::size_t>(address.end - address.start); }
     std::uint32_t MajorDev() const;
     std::uint32_t MinorDev() const;
 
@@ -35,23 +31,13 @@ struct Vma {
     std::string pathname{};
 };
 
-struct Info {
-    std::vector<Vma> vma_table;
-};
-
-// ParseVma/FormatVma供smaps, smaps_rollup复用
 struct ParseVmaResult {
     explicit operator bool() const noexcept { return !failed; }
     Vma vma;
     bool failed{};
 };
-
-[[nodiscard]] Info Get();
-[[nodiscard]] Info Get(pid_t pid);
-[[nodiscard]] ParseVmaResult ParseVma(std::istream &is);
+ParseVmaResult ParseVma(std::istream &is);
 void FormatVma(std::ostream &os, const Vma &vma);
-std::ostream &operator<<(std::ostream &os, const Info &info);
-} // namespace maps
-} // namespace pid
+} // namespace task
 } // namespace proc
 } // namespace oops

@@ -2,8 +2,8 @@
 #include <tuple>
 
 #define TEST_STATIC(suite, case) constexpr void TestStatic_##suite_##case ()
-using namespace oops::meta;
 
+using namespace oops::meta;
 namespace {
 class A {};
 class B {};

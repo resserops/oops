@@ -1,15 +1,14 @@
 #pragma once
-
 #include <cstdint>
 #include <iosfwd>
 
-#include <sys/types.h> // 提供内核数据结构
+#include <sys/types.h>
 
 #include "oops/enum_bitset.h"
 
 namespace oops {
 namespace proc {
-namespace pid {
+namespace task {
 namespace status {
 // clang-format off
 enum class Field : uint8_t {
@@ -41,11 +40,15 @@ struct Info { // 仅支持部分字段
 };
 
 [[nodiscard]] Info Get();
-[[nodiscard]] Info Get(pid_t pid);
 [[nodiscard]] Info Get(const FieldMask &field_mask);
-[[nodiscard]] Info Get(pid_t pid, const FieldMask &field_mask);
+[[nodiscard]] Info Get(std::istream &is);
+[[nodiscard]] Info Get(std::istream &is, const FieldMask &field_mask);
+[[nodiscard]] Info Get(pid_t pid);                                         // /proc/{pid}
+[[nodiscard]] Info Get(pid_t pid, const FieldMask &field_mask);            // /proc/{pid}
+[[nodiscard]] Info Get(pid_t pid, pid_t tid);                              // /proc/{pid}/task/{tid}
+[[nodiscard]] Info Get(pid_t pid, pid_t tid, const FieldMask &field_mask); // /proc/{pid}/task/{tid}
 std::ostream &operator<<(std::ostream &os, const Info &info);
 } // namespace status
-} // namespace pid
+} // namespace task
 } // namespace proc
 } // namespace oops

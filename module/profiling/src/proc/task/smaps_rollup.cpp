@@ -1,4 +1,4 @@
-#include "oops/proc/pid/smaps_rollup.h"
+#include "oops/proc/task/smaps_rollup.h"
 
 #include <fstream>
 #include <istream>
@@ -12,7 +12,7 @@
 
 namespace oops {
 namespace proc {
-namespace pid {
+namespace task {
 namespace smaps_rollup {
 namespace {
 KeyValueParser<Info, Field, meta::TypeList<KiBs<std::size_t>>> kvparser{
@@ -40,10 +40,17 @@ KeyValueParser<Info, Field, meta::TypeList<KiBs<std::size_t>>> kvparser{
      {Field::LOCKED, "Locked", &Info::locked}}};
 } // namespace
 
+Info Get() { return Get(~FieldMask{}); }
+Info Get(const FieldMask &field_mask) {
+    std::ifstream ifs("/proc/self/smaps_rollup");
+    return Get(ifs, field_mask);
+}
+
+Info Get(std::istream &is) { return Get(is, ~FieldMask{}); }
 Info Get(std::istream &is, const FieldMask &field_mask) {
     Info info;
     if (field_mask.Test(Field::VMA)) {
-        auto res{maps::ParseVma(is)};
+        auto res{ParseVma(is)};
         if (res) {
             info.vma = std::move(res.vma);
             info.parsed.Set(Field::VMA);
@@ -56,27 +63,26 @@ Info Get(std::istream &is, const FieldMask &field_mask) {
     return info;
 }
 
-Info Get() { return Get(~FieldMask{}); }
 Info Get(pid_t pid) { return Get(pid, ~FieldMask{}); }
-
-Info Get(const FieldMask &field_mask) {
-    std::ifstream ifs("/proc/self/smaps_rollup");
-    return Get(ifs, field_mask);
-}
-
 Info Get(pid_t pid, const FieldMask &field_mask) {
     std::ifstream ifs(fmt::format("/proc/{}/smaps_rollup", pid));
     return Get(ifs, field_mask);
 }
 
+Info Get(pid_t pid, pid_t tid) { return Get(pid, tid, ~FieldMask{}); }
+Info Get(pid_t pid, pid_t tid, const FieldMask &field_mask) {
+    std::ifstream ifs(fmt::format("/proc/{}/task/{}/smaps_rollup", pid, tid));
+    return Get(ifs, field_mask);
+}
+
 std::ostream &operator<<(std::ostream &os, const Info &info) {
     if (info.parsed.Test(Field::VMA)) {
-        maps::FormatVma(os, info.vma);
+        FormatVma(os, info.vma);
     }
     kvparser.Format(os, info, info.parsed);
     return os;
 }
 } // namespace smaps_rollup
-} // namespace pid
+} // namespace task
 } // namespace proc
 } // namespace oops

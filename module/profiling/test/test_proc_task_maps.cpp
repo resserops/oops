@@ -2,9 +2,9 @@
 
 #include "gtest/gtest.h"
 
-#include "oops/proc/pid/maps.h"
+#include "oops/proc/task/maps.h"
 
 TEST(ProfilingMaps, Maps) {
     using namespace oops;
-    std::cout << proc::pid::maps::Get();
+    std::cout << proc::task::maps::Get();
 }

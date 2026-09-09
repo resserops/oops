@@ -1,5 +1,4 @@
 #pragma once
-
 #include <cstdint>
 #include <iosfwd>
 #include <string>
@@ -32,7 +31,7 @@ struct Entry {
     std::size_t model{};
     std::string model_name{};
     std::size_t stepping{};
-    std::size_t microcode{}; // 十六进制形式，如0x1
+    std::size_t microcode{};
 
     // 规格
     double cpu_mhz{};
