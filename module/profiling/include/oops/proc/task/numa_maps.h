@@ -1,5 +1,4 @@
 #pragma once
-
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -7,9 +6,8 @@
 
 namespace oops {
 namespace proc {
-namespace pid {
+namespace task {
 namespace numa_maps {
-// Since Linux 2.6.14
 struct MemoryRange {
     uintptr_t start_addr;
     std::string memory_policy;
@@ -33,6 +31,6 @@ struct Info {
 
 [[nodiscard]] Info Get();
 } // namespace numa_maps
-} // namespace pid
+} // namespace task
 } // namespace proc
 } // namespace oops

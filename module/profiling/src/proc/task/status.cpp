@@ -1,4 +1,4 @@
-#include "oops/proc/pid/status.h"
+#include "oops/proc/task/status.h"
 
 #include <fstream>
 #include <ostream>
@@ -9,7 +9,7 @@
 
 namespace oops {
 namespace proc {
-namespace pid {
+namespace task {
 namespace status {
 namespace {
 KeyValueParser<Info, Field, meta::TypeList<std::size_t>> kvparser{
@@ -30,22 +30,28 @@ KeyValueParser<Info, Field, meta::TypeList<std::size_t>> kvparser{
      {Field::VM_SWAP, "VmSwap", &Info::vm_swap}}};
 } // namespace
 
+Info Get() { return Get(~FieldMask{}); }
+Info Get(const FieldMask &field_mask) {
+    std::ifstream ifs("/proc/self/status");
+    return Get(ifs, field_mask);
+}
+
+Info Get(std::istream &is) { return Get(is, ~FieldMask{}); }
 Info Get(std::istream &is, const FieldMask &field_mask) {
     Info info;
     info.parsed |= kvparser.Parse(is, info, field_mask);
     return info;
 }
 
-Info Get() { return Get(~FieldMask{}); }
 Info Get(pid_t pid) { return Get(pid, ~FieldMask{}); }
-
-Info Get(const FieldMask &field_mask) {
-    std::ifstream ifs("/proc/self/status");
+Info Get(pid_t pid, const FieldMask &field_mask) {
+    std::ifstream ifs(fmt::format("/proc/{}/status", pid));
     return Get(ifs, field_mask);
 }
 
-Info Get(pid_t pid, const FieldMask &field_mask) {
-    std::ifstream ifs(fmt::format("/proc/{}/status", pid));
+Info Get(pid_t pid, pid_t tid) { return Get(pid, tid, ~FieldMask{}); }
+Info Get(pid_t pid, pid_t tid, const FieldMask &field_mask) {
+    std::ifstream ifs(fmt::format("/proc/{}/task/{}/status", pid, tid));
     return Get(ifs, field_mask);
 }
 
@@ -54,6 +60,6 @@ std::ostream &operator<<(std::ostream &os, const Info &info) {
     return os;
 }
 } // namespace status
-} // namespace pid
+} // namespace task
 } // namespace proc
 } // namespace oops

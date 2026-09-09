@@ -10,6 +10,7 @@
 #include <cxxabi.h>
 
 #include "oops/type_list.h"
+
 namespace oops {
 enum class MatrixFormat : std::uint8_t { SPARSE_COO, SPARSE_CSR, SPARSE_CSC, DENSE_ROW_MAJOR, DENSE_COL_MAJOR };
 enum class MatrixNumeric : std::uint8_t { REAL, COMPLEX, INTEGER, PATTERN, OTHER };

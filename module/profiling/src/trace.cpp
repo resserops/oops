@@ -1,7 +1,7 @@
 #include "oops/trace.h"
 #include "unistd.h"
 
-#include "oops/proc/pid/status.h"
+#include "oops/proc/task/status.h"
 
 namespace oops {
 // TraceConfig
@@ -61,7 +61,7 @@ TimeInterval operator-(const TimePoint &lhs, const TimePoint &rhs) {
 }
 
 Memory Memory::Get() {
-    using namespace proc::pid;
+    using namespace proc::task;
     Memory memory;
     auto status_info{status::Get(status::Field::VM_RSS | status::Field::VM_HWM | status::Field::VM_SWAP)};
     memory.rss = status_info.vm_rss;

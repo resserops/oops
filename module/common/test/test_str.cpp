@@ -6,8 +6,8 @@
 #include "gtest/gtest.h"
 
 #define TEST_STATIC(suite, case) constexpr void TestStatic_##suite_##case ()
-using namespace testing;
 
+using namespace testing;
 static std::string FmtChar(char c) {
     int c_int{static_cast<unsigned char>(c)};
     std::stringstream ss;

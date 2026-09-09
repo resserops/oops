@@ -45,6 +45,15 @@ KeyValueParser<
         [](std::string_view s) { return s.empty(); }};
 } // namespace
 
+Info Get() { return Get(~FieldMask{}); }
+
+Info Get(const FieldMask &field_mask) {
+    std::ifstream ifs("/proc/cpuinfo");
+    return Get(ifs, field_mask);
+}
+
+Info Get(std::istream &is) { return Get(is, ~FieldMask{}); }
+
 Info Get(std::istream &is, const FieldMask &field_mask) {
     Info info;
     while (is.peek() != EOF) {
@@ -54,15 +63,6 @@ Info Get(std::istream &is, const FieldMask &field_mask) {
         is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     }
     return info;
-}
-
-Info Get() { return Get(~FieldMask{}); }
-
-Info Get(std::istream &is) { return Get(is, ~FieldMask{}); }
-
-Info Get(const FieldMask &field_mask) {
-    std::ifstream ifs("/proc/cpuinfo");
-    return Get(ifs, field_mask);
 }
 
 std::ostream &operator<<(std::ostream &os, const Info &info) {

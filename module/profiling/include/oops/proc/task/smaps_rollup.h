@@ -1,17 +1,15 @@
 #pragma once
-
 #include <cstdint>
 #include <iosfwd>
 
 #include "oops/enum_bitset.h"
-#include "oops/proc/pid/maps.h"
+#include "oops/proc/task/vma.h"
 #include "oops/unit.h"
 
 namespace oops {
 namespace proc {
-namespace pid {
+namespace task {
 namespace smaps_rollup {
-// Since Linux
 // clang-format off
 enum class Field : uint8_t {
     VMA,              RSS,              PSS,              PSS_DIRTY,        PSS_ANON,         PSS_FILE,
@@ -23,7 +21,6 @@ enum class Field : uint8_t {
 using FieldMask = EnumBitset<Field>;
 using oops::operator|; // 支持Field和FieldMask或运算ADL
 
-using Vma = maps::Vma;
 struct Info {
     Vma vma;
     // 核心内存
@@ -62,11 +59,15 @@ struct Info {
 };
 
 [[nodiscard]] Info Get();
-[[nodiscard]] Info Get(pid_t pid);
 [[nodiscard]] Info Get(const FieldMask &field_mask);
-[[nodiscard]] Info Get(pid_t pid, const FieldMask &field_mask);
+[[nodiscard]] Info Get(std::istream &is);
+[[nodiscard]] Info Get(std::istream &is, const FieldMask &field_mask);
+[[nodiscard]] Info Get(pid_t pid);                                         // /proc/{pid}
+[[nodiscard]] Info Get(pid_t pid, const FieldMask &field_mask);            // /proc/{pid}
+[[nodiscard]] Info Get(pid_t pid, pid_t tid);                              // /proc/{pid}/task/{tid}
+[[nodiscard]] Info Get(pid_t pid, pid_t tid, const FieldMask &field_mask); // /proc/{pid}/task/{tid}
 std::ostream &operator<<(std::ostream &os, const Info &info);
 } // namespace smaps_rollup
-} // namespace pid
+} // namespace task
 } // namespace proc
 } // namespace oops

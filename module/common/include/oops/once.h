@@ -1,5 +1,4 @@
 #pragma once
-
 #include <cstddef>
 
 #define OOPS_TRY_OR(expression, default_value)    \
