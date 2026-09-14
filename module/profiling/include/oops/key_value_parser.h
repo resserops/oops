@@ -1,10 +1,13 @@
 #pragma once
+#include <cstddef>
+#include <cstdint>
 #include <iostream>
 #include <istream>
 #include <ostream>
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -42,30 +45,6 @@ template <>
 inline bool ParseField(std::string_view s, std::string &t, std::string_view) {
     t = s;
     return true;
-}
-
-// std::vector<std::string>特化
-template <>
-inline bool ParseField(std::string_view s, std::vector<std::string> &v, std::string_view) {
-    v.clear();
-    for (auto token : Split(s)) {
-        v.emplace_back(token);
-    }
-    return true;
-}
-
-template <>
-inline std::string FormatField(const std::vector<std::string> &v, std::string_view) {
-    std::string s;
-    s.reserve(64); // one cache line
-    for (const auto &item : v) {
-        s += item;
-        s += ' ';
-    }
-    if (!s.empty()) {
-        s.pop_back();
-    }
-    return s;
 }
 
 // bool特化：支持在ctx中定义代表真假的字符串，例如"true/false"或"yes/no"
@@ -107,6 +86,102 @@ inline std::string FormatField(const bool &b, std::string_view ctx) {
         f = Strip(ctx.substr(pos + 1));
     }
     return std::string{b ? t : f};
+}
+
+// std::vector<T>特化：空格分隔token序列，ctx逐元素透传
+template <typename T>
+bool ParseVector(std::string_view s, std::vector<T> &v, std::string_view ctx) {
+    v.clear();
+    for (auto token : Split(s)) {
+        T value{};
+        if (!ParseField(token, value, ctx)) {
+            return false;
+        }
+        v.push_back(std::move(value));
+    }
+    return true;
+}
+
+template <typename T>
+std::string FormatVector(const std::vector<T> &v, std::string_view ctx) {
+    std::string s;
+    s.reserve(64); // one cache line
+    for (const auto &item : v) {
+        s += FormatField(item, ctx);
+        s += ' ';
+    }
+    if (!s.empty()) {
+        s.pop_back();
+    }
+    return s;
+}
+
+template <typename T>
+bool ParseField(std::string_view s, std::vector<T> &v, std::string_view ctx) {
+    return ParseVector(s, v, ctx);
+}
+
+template <typename T>
+std::string FormatField(const std::vector<T> &v, std::string_view ctx) {
+    return FormatVector(v, ctx);
+}
+
+// std::vector<bool>特化：
+// ctx = "{:pb}"，按Linux内核%pb格式解析/格式化
+// ctx = other，按默认std::vector<T>格式解析/格式化
+template <>
+inline bool ParseField(std::string_view s, std::vector<bool> &v, std::string_view ctx) {
+    if (ctx != "%*pb") {
+        return ParseVector(s, v, ctx);
+    }
+
+    std::vector<std::uint32_t> chunks; // 高位组在前
+    std::size_t digits{0};
+    for (auto token : Split(s, ',')) {
+        token = Strip(token);
+        std::uint32_t chunk{};
+        if (token.empty() || (!chunks.empty() && token.size() != 8) || !ParseField(token, chunk, "{:x}")) {
+            return false; // 除最高组外每组固定8字符
+        }
+        chunks.push_back(chunk);
+        digits += token.size();
+    }
+
+    v.assign(digits * 4, false);
+    for (std::size_t c{0}; c < chunks.size(); ++c) {
+        for (std::size_t b{0}; b < 32; ++b) {
+            if (chunks[c] & (1u << b)) {
+                v[(chunks.size() - 1 - c) * 32 + b] = true; // 首个chunk为最高组
+            }
+        }
+    }
+    return true;
+}
+
+template <>
+inline std::string FormatField(const std::vector<bool> &v, std::string_view ctx) {
+    if (ctx != "%*pb") {
+        return FormatVector(v, ctx);
+    }
+
+    const std::size_t digits{(v.size() + 3) / 4};
+    const std::size_t chunks{(digits + 7) / 8};
+    std::string s;
+    s.reserve(digits + chunks - 1);
+    for (std::size_t c{chunks}; c-- > 0;) {
+        std::uint32_t chunk{};
+        for (std::size_t b{0}; b < 32 && c * 32 + b < v.size(); ++b) {
+            if (v[c * 32 + b]) {
+                chunk |= 1u << b;
+            }
+        }
+        // 除最高组固定8字符外，最高组宽度为剩余16进制位数
+        s += fmt::format("{:0{}x}", chunk, c == chunks - 1 ? digits - 8 * (chunks - 1) : 8);
+        if (c > 0) {
+            s += ',';
+        }
+    }
+    return s;
 }
 
 // Storage特化
