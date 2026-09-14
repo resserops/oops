@@ -212,12 +212,17 @@ public:
     using MemberPtrVar = oops::meta::ApplyT<std::variant, MemberPtrList>;
 
     struct Entry {
+        Entry(Field f, std::string k, MemberPtrVar m) : field{f}, key{std::move(k)}, member_ptr_var{m} {}
+        Entry(Field f, std::string k, MemberPtrVar m, std::string ctx)
+            : field{f}, key{std::move(k)}, member_ptr_var{m}, parse_ctx{ctx}, format_ctx{std::move(ctx)} {}
+        Entry(Field f, std::string k, MemberPtrVar m, std::string pctx, std::string fctx)
+            : field{f}, key{std::move(k)}, member_ptr_var{m}, parse_ctx{std::move(pctx)}, format_ctx{std::move(fctx)} {}
+
         Field field;
         std::string key;
         MemberPtrVar member_ptr_var;
-        std::string suffix{};
-        std::string parse_ctx{};
-        std::string format_ctx{};
+        std::string parse_ctx;
+        std::string format_ctx;
     };
 
     explicit KeyValueParser(std::initializer_list<Entry> entries) : field_table_{entries} {}
@@ -304,11 +309,7 @@ public:
         for (const auto &entry : field_table_) {
             if (field_mask.Test(entry.field)) {
                 std::string value{FormatMemberPtrVar(entry.member_ptr_var, object, entry.format_ctx)};
-                os << entry.key << delim_ << ' ' << value;
-                if (!entry.suffix.empty()) {
-                    os << ' ' << entry.suffix;
-                }
-                os << '\n';
+                os << entry.key << delim_ << ' ' << value << '\n';
             }
         }
     }
