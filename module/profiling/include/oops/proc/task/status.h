@@ -82,8 +82,8 @@ using oops::operator|;
 
 struct Info {
     // 基础属性
-    std::string name{}; // 进程执行的命令，超过TASK_COMM_LEN的字符会被截断
-    mode_t umask{};     // 4位8进制，文件模式创建掩码，(mode & ~umask) & 0777 = 进程创建文件的权限
+    std::string name{};  // 进程执行的命令，超过TASK_COMM_LEN的字符会被截断
+    mode_t umask{};      // 4位8进制，文件权限掩码，(mode & ~umask) & 0777 = 进程创建文件的权限
     std::string state{}; // 进程状态
 
     pid_t tgid{};       // 线程组ID（进程ID）

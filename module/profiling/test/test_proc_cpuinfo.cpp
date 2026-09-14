@@ -90,7 +90,7 @@ TEST(ProfilingCpuinfo, CpuinfoFormat) {
     buf << ifs.rdbuf();
     auto expected{SplitAndSqueezeLines(buf.str())};
 
-    ifs.clear(); // 恢复被rdbuf读取耗尽的流
+    ifs.clear(); // 恢复被rdbuf耗尽的流
     ifs.seekg(0);
     auto info{cpuinfo::Get(ifs)};
     std::ostringstream oss;
