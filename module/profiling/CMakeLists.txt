@@ -31,7 +31,7 @@ if(ENABLE_TEST)
     # 构建测试对象库
     file(GLOB_RECURSE TEST_SRC "test/*.cpp")
     add_library(oops_profiling_test_o OBJECT ${TEST_SRC})
-    target_link_libraries(oops_profiling_test_o PRIVATE oops_profiling_i gtest)
+    target_link_libraries(oops_profiling_test_o PRIVATE oops_profiling_i gtest gmock)
 
     # 用例路径定义
     set(OOPS_PROFILING_CASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/test/case")

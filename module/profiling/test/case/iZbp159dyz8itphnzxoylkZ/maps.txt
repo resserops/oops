@@ -1,0 +1,41 @@
+5b1717caa000-5b1717cae000 r--p 00000000 fd:03 1181273                    /home/resserops/github/oops/build/bin/load_cpu_stepped
+5b1717cae000-5b1717cc4000 r-xp 00004000 fd:03 1181273                    /home/resserops/github/oops/build/bin/load_cpu_stepped
+5b1717cc4000-5b1717cc8000 r--p 0001a000 fd:03 1181273                    /home/resserops/github/oops/build/bin/load_cpu_stepped
+5b1717cc8000-5b1717cc9000 r--p 0001e000 fd:03 1181273                    /home/resserops/github/oops/build/bin/load_cpu_stepped
+5b1717cc9000-5b1717cca000 rw-p 0001f000 fd:03 1181273                    /home/resserops/github/oops/build/bin/load_cpu_stepped
+5b1756807000-5b1756828000 rw-p 00000000 00:00 0                          [heap]
+7bea829ff000-7bea82a00000 ---p 00000000 00:00 0 
+7bea82a00000-7bea83200000 rw-p 00000000 00:00 0 
+7bea83200000-7bea83228000 r--p 00000000 fd:03 968141                     /usr/lib/x86_64-linux-gnu/libc.so.6
+7bea83228000-7bea833b0000 r-xp 00028000 fd:03 968141                     /usr/lib/x86_64-linux-gnu/libc.so.6
+7bea833b0000-7bea833ff000 r--p 001b0000 fd:03 968141                     /usr/lib/x86_64-linux-gnu/libc.so.6
+7bea833ff000-7bea83403000 r--p 001fe000 fd:03 968141                     /usr/lib/x86_64-linux-gnu/libc.so.6
+7bea83403000-7bea83405000 rw-p 00202000 fd:03 968141                     /usr/lib/x86_64-linux-gnu/libc.so.6
+7bea83405000-7bea83412000 rw-p 00000000 00:00 0 
+7bea83517000-7bea83527000 r--p 00000000 fd:03 968147                     /usr/lib/x86_64-linux-gnu/libm.so.6
+7bea83527000-7bea835a6000 r-xp 00010000 fd:03 968147                     /usr/lib/x86_64-linux-gnu/libm.so.6
+7bea835a6000-7bea835fe000 r--p 0008f000 fd:03 968147                     /usr/lib/x86_64-linux-gnu/libm.so.6
+7bea835fe000-7bea835ff000 r--p 000e7000 fd:03 968147                     /usr/lib/x86_64-linux-gnu/libm.so.6
+7bea835ff000-7bea83600000 rw-p 000e8000 fd:03 968147                     /usr/lib/x86_64-linux-gnu/libm.so.6
+7bea83600000-7bea8369d000 r--p 00000000 fd:03 919599                     /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33
+7bea8369d000-7bea837e5000 r-xp 0009d000 fd:03 919599                     /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33
+7bea837e5000-7bea8386c000 r--p 001e5000 fd:03 919599                     /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33
+7bea8386c000-7bea83877000 r--p 0026b000 fd:03 919599                     /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33
+7bea83877000-7bea8387a000 rw-p 00276000 fd:03 919599                     /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33
+7bea8387a000-7bea8387e000 rw-p 00000000 00:00 0 
+7bea838c9000-7bea838ce000 rw-p 00000000 00:00 0 
+7bea838ce000-7bea838d2000 r--p 00000000 fd:03 919597                     /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7bea838d2000-7bea838f6000 r-xp 00004000 fd:03 919597                     /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7bea838f6000-7bea838fa000 r--p 00028000 fd:03 919597                     /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7bea838fa000-7bea838fb000 r--p 0002b000 fd:03 919597                     /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7bea838fb000-7bea838fc000 rw-p 0002c000 fd:03 919597                     /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+7bea83905000-7bea83907000 rw-p 00000000 00:00 0 
+7bea83907000-7bea83908000 r--p 00000000 fd:03 968135                     /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7bea83908000-7bea83933000 r-xp 00001000 fd:03 968135                     /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7bea83933000-7bea8393d000 r--p 0002c000 fd:03 968135                     /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7bea8393d000-7bea8393f000 r--p 00036000 fd:03 968135                     /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7bea8393f000-7bea83941000 rw-p 00038000 fd:03 968135                     /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7ffcedf03000-7ffcedf24000 rw-p 00000000 00:00 0                          [stack]
+7ffcedf5b000-7ffcedf5f000 r--p 00000000 00:00 0                          [vvar]
+7ffcedf5f000-7ffcedf61000 r-xp 00000000 00:00 0                          [vdso]
+ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsyscall]
