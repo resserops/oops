@@ -10,16 +10,35 @@
 namespace oops {
 namespace proc {
 namespace cpuinfo {
-// 每个processor一个记录，字段集与本机/proc/cpuinfo打印一致，Field枚举顺序与Processor成员顺序一致
-// clang-format off
 enum class Field : uint8_t {
-    PROCESSOR,        VENDOR_ID,        CPU_FAMILY,       MODEL,            MODEL_NAME,       STEPPING,
-    MICROCODE,        CPU_MHZ,          CACHE_SIZE,       PHYSICAL_ID,      SIBLINGS,         CORE_ID,
-    CPU_CORES,        APICID,           INITIAL_APICID,   FPU,              FPU_EXCEPTION,    CPUID_LEVEL,
-    WP,               FLAGS,            BUGS,             BOGOMIPS,         CLFLUSH_SIZE,     CACHE_ALIGNMENT,
-    ADDRESS_SIZES,    POWER_MANAGEMENT, COUNT
+    PROCESSOR,
+    VENDOR_ID,
+    CPU_FAMILY,
+    MODEL,
+    MODEL_NAME,
+    STEPPING,
+    MICROCODE,
+    CPU_MHZ,
+    CACHE_SIZE,
+    PHYSICAL_ID,
+    SIBLINGS,
+    CORE_ID,
+    CPU_CORES,
+    APICID,
+    INITIAL_APICID,
+    FPU,
+    FPU_EXCEPTION,
+    CPUID_LEVEL,
+    WP,
+    FLAGS,
+    BUGS,
+    BOGOMIPS,
+    CLFLUSH_SIZE,
+    CACHE_ALIGNMENT,
+    ADDRESS_SIZES,
+    POWER_MANAGEMENT,
+    COUNT
 };
-// clang-format on
 using FieldMask = EnumBitset<Field>;
 using oops::operator|; // 支持Field和FieldMask或运算ADL
 
@@ -71,6 +90,7 @@ struct Info {
 [[nodiscard]] Info Get(const FieldMask &field_mask);
 [[nodiscard]] Info Get(std::istream &is);
 [[nodiscard]] Info Get(std::istream &is, const FieldMask &field_mask);
+
 std::ostream &operator<<(std::ostream &os, const Info &info);
 } // namespace cpuinfo
 } // namespace proc

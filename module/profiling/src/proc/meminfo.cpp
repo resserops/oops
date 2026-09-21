@@ -70,14 +70,12 @@ KeyValueParser<Info, Field, TL> kvparser{
 } // namespace
 
 Info Get() { return Get(~FieldMask{}); }
-
 Info Get(const FieldMask &field_mask) {
     std::ifstream ifs("/proc/meminfo");
     return Get(ifs, field_mask);
 }
 
 Info Get(std::istream &is) { return Get(is, ~FieldMask{}); }
-
 Info Get(std::istream &is, const FieldMask &field_mask) {
     Info info;
     info.parsed |= kvparser.Parse(is, info, field_mask);
