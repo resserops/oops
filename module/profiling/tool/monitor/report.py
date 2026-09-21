@@ -2,6 +2,7 @@
 import argparse
 import math
 import sys
+
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from glob import glob as glob_match
@@ -9,9 +10,11 @@ from pathlib import Path
 
 AUTO_RESOLUTION = 960
 METRIC_TABLE = {
-    "cpu": "%Cpu",
-    "rss": "Rss(G)",
-    "hwm": "Hwm(G)",
+    "cpu_eq_cores": "EqCPUs",
+    "cpu_avg_ghz": "AvgGHz",
+    "cpu_min_ghz": "MinGHz",
+    "rss": "RSS(G)",
+    "hwm": "HWM(G)",
     "swap": "Swap(G)",
 }
 
@@ -79,7 +82,7 @@ def search_valid_input(inputs, dirs):
         if path.is_file():
             valid_input.append(path.resolve())
         else:
-            print(f"Warning: bad path. ignored: {path}", file=sys.stderr)
+            print(f"warning: bad path. ignored: {path}", file=sys.stderr)
 
     return sorted(set(valid_input))
 
@@ -122,19 +125,19 @@ def parse_raw_data(path, entry):
             continue
 
         if step == "META":
-            matched, value = parse_value_after_prefix(line, "Tracked pid:")
+            matched, value = parse_value_after_prefix(line, "tracked pid:")
             if matched:
                 entry.pid = int(value)
                 continue
-            matched, value = parse_value_after_prefix(line, "Interval:")
+            matched, value = parse_value_after_prefix(line, "interval:")
             if matched:
                 entry.interval = value
                 continue
-            pos = line.find("Timestamp:")
+            pos = line.find("timestamp:")
             if pos != -1:
-                entry.start_time = str_to_timestamp(line[pos + len("Timestamp:"):])
+                entry.start_time = str_to_timestamp(line[pos + len("timestamp:"):])
                 continue
-            if "Monitoring results:" in line:
+            if "monitoring results:" in line:
                 step = "HEADER_ROW"
         elif step == "HEADER_ROW":
             for token in line.split(", "):
@@ -217,7 +220,7 @@ def plot_cpu(raw_data_table, total_start_time, show):
         (entry, metric)
         for entry in raw_data_table
         for metric in entry.metric_data_table
-        if metric.name == METRIC_TABLE["cpu"] and metric.values
+        if metric.name == METRIC_TABLE["cpu_eq_cores"] and metric.values
     ]
     if not entries:
         return
@@ -256,11 +259,11 @@ def plot_cpu(raw_data_table, total_start_time, show):
         times = [offset + j * r_entry.interval for j in range(len(m_entry.values))]
 
         ax = axes[i]
-        # 使用step绘制阶梯图，post逻辑：第0个点，时刻是0，对应[0, itv]区间的平均CPU利用率
+        # 使用step绘制阶梯图，post逻辑：第0个点，时刻是0，对应[0, itv]区间的平均等效核数
         ax.step(times, m_entry.values, where="post", label=m_entry.name, linewidth=1.5)
         ax.margins(x=0)
         ax.grid(True, linestyle="--", alpha=0.5)
-        ylim = max(100.0, max_value)
+        ylim = max(1.0, max_value)
         ax.set_ylim(-ylim / 20, ylim + ylim / 20)  # 对齐每个子图y坐标范围
         # 绘制每个子图左侧描述raw data的标签
         ax.set_ylabel(
@@ -271,7 +274,7 @@ def plot_cpu(raw_data_table, total_start_time, show):
         )
         ax.legend(loc="upper right")
 
-    fig.suptitle("CPU Utilization Time Series (%)", fontsize=16, fontweight="bold")
+    fig.suptitle("CPU Equivalent Cores Time Series", fontsize=16, fontweight="bold")
     axes[-1].set_xlabel("Time (s)")
     fig.tight_layout()
     fig.savefig("cpu_usage.png", dpi=100, bbox_inches="tight")
@@ -329,10 +332,10 @@ def parse_args():
     args.dir = [token for token in args.dir.split(",")]
     for dir_ in args.dir:
         if not Path(dir_).is_dir():
-            print(f"Error: '{dir_}' in --dir is not a directory", file=sys.stderr)
+            print(f"error: '{dir_}' in --dir is not a directory", file=sys.stderr)
             sys.exit(1)
     if not args.dir:
-        print("Error: no valid directories provided in --dir", file=sys.stderr)
+        print("error: no valid directories provided in --dir", file=sys.stderr)
         sys.exit(1)
 
     # --resolution
@@ -344,13 +347,13 @@ def parse_args():
         try:
             args.resolution = int(args.resolution)
         except ValueError:
-            print(f"Error: unexpected resolution '{args.resolution}'", file=sys.stderr)
+            print(f"error: unexpected resolution '{args.resolution}'", file=sys.stderr)
             sys.exit(1)
 
     # --range
     range_tokens = [token.strip() for token in args.range.split(":")]
     if len(range_tokens) != 2:
-        print(f"Error: unexpected range format '{args.range}'", file=sys.stderr)
+        print(f"error: unexpected range format '{args.range}'", file=sys.stderr)
         sys.exit(1)
 
     range_start = 0.0
@@ -359,19 +362,19 @@ def parse_args():
         try:
             range_start = float(range_tokens[0])
         except ValueError:
-            print(f"Error: unexpected range start '{range_tokens[0]}'", file=sys.stderr)
+            print(f"error: unexpected range start '{range_tokens[0]}'", file=sys.stderr)
             sys.exit(1)
         if range_start < 0:
-            print(f"Error: range start '{range_start}' must be >= 0", file=sys.stderr)
+            print(f"error: range start '{range_start}' must be >= 0", file=sys.stderr)
             sys.exit(1)
     if range_tokens[1]:
         try:
             range_end = float(range_tokens[1])
         except ValueError:
-            print(f"Error: unexpected range end '{range_tokens[1]}'", file=sys.stderr)
+            print(f"error: unexpected range end '{range_tokens[1]}'", file=sys.stderr)
             sys.exit(1)
         if range_end < range_start:
-            print(f"Error: range end '{range_end}' must be >= range start '{range_start}'", file=sys.stderr)
+            print(f"error: range end '{range_end}' must be >= range start '{range_start}'", file=sys.stderr)
             sys.exit(1)
     args.range_start = range_start
     args.range_end = range_end
