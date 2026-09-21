@@ -71,7 +71,7 @@ TEST(ProfilingCpuinfo, CpuinfoParse) {
         EXPECT_EQ(entry.bugs.front(), "cpu_meltdown");
         EXPECT_EQ(entry.bugs.back(), "its");
 
-        // 其它
+        // 杂项
         EXPECT_DOUBLE_EQ(entry.bogomips, 4999.99);
         EXPECT_EQ(entry.clflush_size, 64);
         EXPECT_EQ(entry.cache_alignment, 64);

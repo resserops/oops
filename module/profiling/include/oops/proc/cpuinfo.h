@@ -53,7 +53,7 @@ struct Entry {
     std::vector<std::string> flags{};
     std::vector<std::string> bugs{};
 
-    // 其它
+    // 杂项
     double bogomips{};
     std::size_t clflush_size{};
     std::size_t cache_alignment{};
