@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <csignal>
@@ -17,6 +18,7 @@
 #include "oops/cpu_timer.h"
 #include "oops/enum_bitset.h"
 #include "oops/once.h"
+#include "oops/proc/meminfo.h"
 #include "oops/proc/task/status.h"
 #include "oops/str.h"
 #include "oops/unit.h"
@@ -159,15 +161,15 @@ void Measure() {
     std::cout << MakeHeaderRow() << std::endl;
 
     std::vector<double> values(oops::ToUnderlying(Metrics::COUNT));
+    double used_peak{0.}; // 系统级RSS峰值：无内核计数，取监控窗口内的运行峰值
     while (!STOP.load(std::memory_order_relaxed) && (ARGS.mode == Mode::SYSTEM_WIDE || ProcExist(ARGS.pid))) {
         std::this_thread::sleep_until(next_time);
 
-        // 根据选项配置完成测量
         if (ENABLED_METRIC_GROUP.Test(MetricGroup::CPU)) {
-            // CPU利用率：等效核数（单核满载为1，N核全忙为N），多核下百分比会超100%不便阅读
+            // 等效核数
             values[oops::ToUnderlying(Metrics::CPU_EQ_CORES)] = TRY_OR(cpu_timer.Lap().CpuUsage(), .0);
 
-            // CPU主频：换算为GHz
+            // CPU主频
             if (ARGS.mode != Mode::PID) {
                 auto freq{oops::cpu_freq::Get()};
                 values[oops::ToUnderlying(Metrics::CPU_AVG_GHZ)] = freq.Average() / 1000.;
@@ -176,9 +178,16 @@ void Measure() {
         }
 
         if (ENABLED_METRIC_GROUP.Test(MetricGroup::MEMORY)) {
-            // 内存统计：目前仅有pid级来源；system-wide来源（如/proc/meminfo）暂未实现，
-            // system-wide模式下按注册语义显示该列，值暂为0
-            if (ARGS.mode != Mode::SYSTEM_WIDE) {
+            if (ARGS.mode == Mode::SYSTEM_WIDE) {
+                using namespace oops::proc::meminfo;
+                auto info{Get(Field::ANON_PAGES | Field::MAPPED | Field::SWAP_TOTAL | Field::SWAP_FREE)};
+                const auto rss{info.anon_pages.Count() + info.mapped.Count()};
+                values[oops::ToUnderlying(Metrics::RSS)] = oops::GiBs<double>{oops::KiBs<>{rss}}.Count();
+                used_peak = std::max(used_peak, values[oops::ToUnderlying(Metrics::RSS)]);
+                values[oops::ToUnderlying(Metrics::HWM)] = used_peak;
+                values[oops::ToUnderlying(Metrics::SWAP)] =
+                    oops::GiBs<double>{oops::KiBs<>{info.swap_total.Count() - info.swap_free.Count()}}.Count();
+            } else {
                 using namespace oops::proc::task::status;
                 auto info{Get(ARGS.pid, Field::VM_RSS | Field::VM_HWM | Field::VM_SWAP)};
                 values[oops::ToUnderlying(Metrics::RSS)] = oops::GiBs<double>{oops::KiBs<>{info.vm_rss}}.Count();
