@@ -10,7 +10,7 @@ namespace oops {
 namespace proc {
 namespace meminfo {
 namespace {
-using TL = meta::TypeList<KiBs<std::size_t>, std::size_t>;
+using TL = meta::TypeList<KiBs, std::size_t>;
 KeyValueParser<Info, Field, TL> kvparser{
     {{Field::MEM_TOTAL, "MemTotal", &Info::mem_total, "{} kB"},
      {Field::MEM_FREE, "MemFree", &Info::mem_free, "{} kB"},

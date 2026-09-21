@@ -20,8 +20,8 @@
 #include "oops/once.h"
 #include "oops/proc/meminfo.h"
 #include "oops/proc/task/status.h"
+#include "oops/storage.h"
 #include "oops/str.h"
-#include "oops/unit.h"
 
 enum class Mode : uint8_t { PID, SYSTEM_WIDE, FALLBACK };
 
@@ -45,12 +45,11 @@ struct MetricEntry {
     bool only_system_wide{false};
 };
 
-constexpr MetricEntry METRIC_TABLE[] = {{"EqCPUs", 8, MetricGroup::CPU},       {"AvgGHz", 8, MetricGroup::CPU, true},
-                                        {"MinGHz", 8, MetricGroup::CPU, true}, {"RSS(G)", 8, MetricGroup::MEMORY},
-                                        {"HWM(G)", 8, MetricGroup::MEMORY},    {"Swap(G)", 8, MetricGroup::MEMORY}};
+constexpr MetricEntry METRIC_TABLE[]{{"EqCPUs", 8, MetricGroup::CPU},       {"AvgGHz", 8, MetricGroup::CPU, true},
+                                     {"MinGHz", 8, MetricGroup::CPU, true}, {"RSS(G)", 8, MetricGroup::MEMORY},
+                                     {"HWM(G)", 8, MetricGroup::MEMORY},    {"Swap(G)", 8, MetricGroup::MEMORY}};
 static_assert(std::size(METRIC_TABLE) == oops::ToUnderlying(Metrics::COUNT));
 
-// 测量功能
 bool ProcExist(pid_t pid) {
     static std::string path{"/proc/" + std::to_string(pid)};
     struct stat buffer;
@@ -161,7 +160,7 @@ void Measure() {
     std::cout << MakeHeaderRow() << std::endl;
 
     std::vector<double> values(oops::ToUnderlying(Metrics::COUNT));
-    double used_peak{0.}; // 系统级RSS峰值：无内核计数，取监控窗口内的运行峰值
+    double system_wide_hwm{0.};
     while (!STOP.load(std::memory_order_relaxed) && (ARGS.mode == Mode::SYSTEM_WIDE || ProcExist(ARGS.pid))) {
         std::this_thread::sleep_until(next_time);
 
@@ -181,18 +180,18 @@ void Measure() {
             if (ARGS.mode == Mode::SYSTEM_WIDE) {
                 using namespace oops::proc::meminfo;
                 auto info{Get(Field::ANON_PAGES | Field::MAPPED | Field::SWAP_TOTAL | Field::SWAP_FREE)};
-                const auto rss{info.anon_pages.Count() + info.mapped.Count()};
-                values[oops::ToUnderlying(Metrics::RSS)] = oops::GiBs<double>{oops::KiBs<>{rss}}.Count();
-                used_peak = std::max(used_peak, values[oops::ToUnderlying(Metrics::RSS)]);
-                values[oops::ToUnderlying(Metrics::HWM)] = used_peak;
+                values[oops::ToUnderlying(Metrics::RSS)] =
+                    oops::Storage<double, oops::GiB>{info.anon_pages + info.mapped}.Count();
+                system_wide_hwm = std::max(system_wide_hwm, values[oops::ToUnderlying(Metrics::RSS)]);
+                values[oops::ToUnderlying(Metrics::HWM)] = system_wide_hwm;
                 values[oops::ToUnderlying(Metrics::SWAP)] =
-                    oops::GiBs<double>{oops::KiBs<>{info.swap_total.Count() - info.swap_free.Count()}}.Count();
+                    oops::Storage<double, oops::GiB>{info.swap_total - info.swap_free}.Count();
             } else {
                 using namespace oops::proc::task::status;
                 auto info{Get(ARGS.pid, Field::VM_RSS | Field::VM_HWM | Field::VM_SWAP)};
-                values[oops::ToUnderlying(Metrics::RSS)] = oops::GiBs<double>{oops::KiBs<>{info.vm_rss}}.Count();
-                values[oops::ToUnderlying(Metrics::HWM)] = oops::GiBs<double>{oops::KiBs<>{info.vm_hwm}}.Count();
-                values[oops::ToUnderlying(Metrics::SWAP)] = oops::GiBs<double>{oops::KiBs<>{info.vm_swap}}.Count();
+                values[oops::ToUnderlying(Metrics::RSS)] = oops::Storage<double, oops::GiB>{info.vm_rss}.Count();
+                values[oops::ToUnderlying(Metrics::HWM)] = oops::Storage<double, oops::GiB>{info.vm_hwm}.Count();
+                values[oops::ToUnderlying(Metrics::SWAP)] = oops::Storage<double, oops::GiB>{info.vm_swap}.Count();
             }
         }
 

@@ -4,7 +4,7 @@
 
 #include "oops/enum_bitset.h"
 #include "oops/proc/task/vma.h"
-#include "oops/unit.h"
+#include "oops/storage.h"
 
 namespace oops {
 namespace proc {
@@ -24,36 +24,36 @@ using oops::operator|; // 支持Field和FieldMask或运算ADL
 struct Info {
     Vma vma;
     // 核心内存
-    KiBs<std::size_t> rss{};
-    KiBs<std::size_t> pss{};
-    KiBs<std::size_t> pss_dirty{};
-    KiBs<std::size_t> pss_anon{};
-    KiBs<std::size_t> pss_file{};
-    KiBs<std::size_t> pss_shmem{};
+    KiBs rss{};
+    KiBs pss{};
+    KiBs pss_dirty{};
+    KiBs pss_anon{};
+    KiBs pss_file{};
+    KiBs pss_shmem{};
 
     // 页面共享状态
-    KiBs<std::size_t> shared_clean{};
-    KiBs<std::size_t> shared_dirty{};
-    KiBs<std::size_t> private_clean{};
-    KiBs<std::size_t> private_dirty{};
+    KiBs shared_clean{};
+    KiBs shared_dirty{};
+    KiBs private_clean{};
+    KiBs private_dirty{};
 
     // 引用与内核
-    KiBs<std::size_t> referenced{};
-    KiBs<std::size_t> anonymous{};
-    KiBs<std::size_t> ksm{};
-    KiBs<std::size_t> lazy_free{};
+    KiBs referenced{};
+    KiBs anonymous{};
+    KiBs ksm{};
+    KiBs lazy_free{};
 
     // 大页
-    KiBs<std::size_t> anon_huge_pages{};
-    KiBs<std::size_t> shmem_pmd_mapped{};
-    KiBs<std::size_t> file_pmd_mapped{};
-    KiBs<std::size_t> shared_hugetlb{};
-    KiBs<std::size_t> private_hugetlb{};
+    KiBs anon_huge_pages{};
+    KiBs shmem_pmd_mapped{};
+    KiBs file_pmd_mapped{};
+    KiBs shared_hugetlb{};
+    KiBs private_hugetlb{};
 
     // 交换区与锁定
-    KiBs<std::size_t> swap{};
-    KiBs<std::size_t> swap_pss{};
-    KiBs<std::size_t> locked{};
+    KiBs swap{};
+    KiBs swap_pss{};
+    KiBs locked{};
 
     FieldMask parsed;
 };

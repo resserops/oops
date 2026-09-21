@@ -7,7 +7,7 @@
 #include <sys/types.h>
 
 #include "oops/enum_bitset.h"
-#include "oops/unit.h"
+#include "oops/storage.h"
 
 namespace oops {
 namespace proc {
@@ -120,22 +120,22 @@ struct Info {
     bool kthread{}; // 是否是内核线程
 
     // 内存统计
-    KiBs<std::size_t> vm_peak{};       // 虚拟内存峰值
-    KiBs<std::size_t> vm_size{};       // 虚拟内存
-    KiBs<std::size_t> vm_lck{};        // 锁定内存（不可交换到磁盘）
-    KiBs<std::size_t> vm_pin{};        // 固定内存（物理地址不可迁移）
-    KiBs<std::size_t> vm_hwm{};        // 物理内存峰值
-    KiBs<std::size_t> vm_rss{};        // 物理内存 = RssAnon + RssFile + RssShmem，不精确
-    KiBs<std::size_t> rss_anon{};      // 私有匿名映射内存，不精确
-    KiBs<std::size_t> rss_file{};      // 私有文件映射内存，不精确
-    KiBs<std::size_t> rss_shmem{};     // 共享映射（包括共享匿名和共享文件映射）内存
-    KiBs<std::size_t> vm_data{};       // 数据段，不精确
-    KiBs<std::size_t> vm_stk{};        // 堆栈段，不精确
-    KiBs<std::size_t> vm_exe{};        // 文本段，不精确
-    KiBs<std::size_t> vm_lib{};        // 共享库代码
-    KiBs<std::size_t> vm_pte{};        // 页表项
-    KiBs<std::size_t> vm_swap{};       // 换出的匿名私有映射
-    KiBs<std::size_t> hugetlb_pages{}; // 标准大页内存（不包括透明大页）
+    KiBs vm_peak{};       // 虚拟内存峰值
+    KiBs vm_size{};       // 虚拟内存
+    KiBs vm_lck{};        // 锁定内存（不可交换到磁盘）
+    KiBs vm_pin{};        // 固定内存（物理地址不可迁移）
+    KiBs vm_hwm{};        // 物理内存峰值
+    KiBs vm_rss{};        // 物理内存 = RssAnon + RssFile + RssShmem，不精确
+    KiBs rss_anon{};      // 私有匿名映射内存，不精确
+    KiBs rss_file{};      // 私有文件映射内存，不精确
+    KiBs rss_shmem{};     // 共享映射（包括共享匿名和共享文件映射）内存
+    KiBs vm_data{};       // 数据段，不精确
+    KiBs vm_stk{};        // 堆栈段，不精确
+    KiBs vm_exe{};        // 文本段，不精确
+    KiBs vm_lib{};        // 共享库代码
+    KiBs vm_pte{};        // 页表项
+    KiBs vm_swap{};       // 换出的匿名私有映射
+    KiBs hugetlb_pages{}; // 标准大页内存（不包括透明大页）
 
     // 杂项
     bool core_dumping{};         // 进程是否正在核心转储

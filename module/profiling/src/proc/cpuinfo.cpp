@@ -12,7 +12,7 @@ namespace oops {
 namespace proc {
 namespace cpuinfo {
 namespace {
-using TL = meta::TypeList<std::size_t, double, std::string, bool, KiBs<std::size_t>, std::vector<std::string>>;
+using TL = meta::TypeList<std::size_t, double, std::string, bool, KiBs, std::vector<std::string>>;
 KeyValueParser<Entry, Field, TL> kvparser{
     {{Field::PROCESSOR, "processor", &Entry::processor},
      {Field::VENDOR_ID, "vendor_id", &Entry::vendor_id},
