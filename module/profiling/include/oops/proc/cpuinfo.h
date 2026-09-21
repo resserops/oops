@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "oops/enum_bitset.h"
-#include "oops/unit.h"
+#include "oops/storage.h"
 
 namespace oops {
 namespace proc {
@@ -54,7 +54,7 @@ struct Entry {
 
     // 规格
     double cpu_mhz{};
-    KiBs<std::size_t> cache_size{};
+    KiBs cache_size{};
 
     // 拓扑
     std::size_t physical_id{};

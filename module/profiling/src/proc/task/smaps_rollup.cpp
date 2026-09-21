@@ -15,7 +15,7 @@ namespace proc {
 namespace task {
 namespace smaps_rollup {
 namespace {
-KeyValueParser<Info, Field, meta::TypeList<KiBs<std::size_t>>> kvparser{
+KeyValueParser<Info, Field, meta::TypeList<KiBs>> kvparser{
     {{Field::RSS, "Rss", &Info::rss, "{} kB"},
      {Field::PSS, "Pss", &Info::pss, "{} kB"},
      {Field::PSS_DIRTY, "Pss_Dirty", &Info::pss_dirty, "{} kB"},

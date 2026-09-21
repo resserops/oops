@@ -69,7 +69,7 @@ namespace proc {
 namespace task {
 namespace smaps {
 namespace {
-KeyValueParser<VmaExt, Field, meta::TypeList<KiBs<std::size_t>, bool, decltype(VmaExt::vm_flags)>> kvparser{
+KeyValueParser<VmaExt, Field, meta::TypeList<KiBs, bool, decltype(VmaExt::vm_flags)>> kvparser{
     {{Field::SIZE, "Size", &VmaExt::size, "{} kB"},
      {Field::KERNEL_PAGE_SIZE, "KernelPageSize", &VmaExt::kernel_page_size, "{} kB"},
      {Field::MMU_PAGE_SIZE, "MMUPageSize", &VmaExt::mmu_page_size, "{} kB"},

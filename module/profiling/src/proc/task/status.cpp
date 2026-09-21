@@ -66,8 +66,8 @@ namespace task {
 namespace status {
 namespace {
 using TL = meta::TypeList<
-    std::string, std::size_t, pid_t, mode_t, bool, KiBs<std::size_t>, Info::Uid, Info::Gid, Info::SigQ,
-    std::vector<gid_t>, std::vector<pid_t>, std::vector<std::string>, std::vector<bool>>;
+    std::string, std::size_t, pid_t, mode_t, bool, KiBs, Info::Uid, Info::Gid, Info::SigQ, std::vector<gid_t>,
+    std::vector<pid_t>, std::vector<std::string>, std::vector<bool>>;
 KeyValueParser<Info, Field, TL> kvparser{
     {{Field::NAME, "Name", &Info::name},
      {Field::UMASK, "Umask", &Info::umask, "{:o}", "{:04o}"},
