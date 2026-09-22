@@ -1,4 +1,5 @@
 #pragma once
+#include <bitset>
 #include <cstdint>
 #include <iosfwd>
 #include <string>
@@ -149,18 +150,18 @@ struct Info {
         std::size_t limit{}; // 真实UID下排队的最大信号数量
     } sig_q{};
 
-    std::size_t sig_pnd{}; // 16位16进制，线程级待处理信号掩码
-    std::size_t shd_pnd{}; // 16位16进制，进程级待处理信号掩码
-    std::size_t sig_blk{}; // 16位16进制，被阻塞信号掩码
-    std::size_t sig_ign{}; // 16位16进制，被忽略信号掩码
-    std::size_t sig_cgt{}; // 16位16进制，被捕获信号掩码
+    std::bitset<64> sig_pnd{}; // 线程级待处理信号掩码
+    std::bitset<64> shd_pnd{}; // 进程级待处理信号掩码
+    std::bitset<64> sig_blk{}; // 被阻塞信号掩码
+    std::bitset<64> sig_ign{}; // 被忽略信号掩码
+    std::bitset<64> sig_cgt{}; // 被捕获信号掩码
 
     // 能力
-    std::size_t cap_inh{}; // 16位16进制，可继承能力集
-    std::size_t cap_prm{}; // 16位16进制，许可能力集
-    std::size_t cap_eff{}; // 16位16进制，有效能力集
-    std::size_t cap_bnd{}; // 16位16进制，能力边界集
-    std::size_t cap_amb{}; // 16位16进制，环境能力集
+    std::bitset<64> cap_inh{}; // 可继承能力集
+    std::bitset<64> cap_prm{}; // 许可能力集
+    std::bitset<64> cap_eff{}; // 有效能力集
+    std::bitset<64> cap_bnd{}; // 能力边界集
+    std::bitset<64> cap_amb{}; // 环境能力集
 
     // 安全
     bool no_new_privs{};                       // 是否不允许提权

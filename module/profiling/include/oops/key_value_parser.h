@@ -1,4 +1,5 @@
 #pragma once
+#include <bitset>
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
@@ -182,6 +183,22 @@ inline std::string FormatField(const std::vector<bool> &v, std::string_view ctx)
         }
     }
     return s;
+}
+
+// std::bitset<64>特化
+template <>
+inline bool ParseField(std::string_view s, std::bitset<64> &bs, std::string_view ctx) {
+    std::uint64_t v{};
+    if (!ParseField(s, v, ctx)) {
+        return false;
+    }
+    bs = std::bitset<64>{v};
+    return true;
+}
+
+template <>
+inline std::string FormatField(const std::bitset<64> &bs, std::string_view ctx) {
+    return FormatField(bs.to_ullong(), ctx);
 }
 
 // Storage特化
