@@ -145,7 +145,7 @@ struct Info {
     std::size_t huge_pages_total{}; // 标准大页总数量
     std::size_t huge_pages_free{};  // 空闲标准大页
     std::size_t huge_pages_rsvd{};  // 已提交但未touch的标准大页
-    std::size_t huge_pages_surp{};  // 超发标准大页（nr_hugepages配置外的）
+    std::size_t huge_pages_surp{};  // 超发标准大页
     KiBs huge_page_size{};          // 标准大页容量
     KiBs hugetlb{};                 // 标准大页总内存
 
