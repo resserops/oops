@@ -1,21 +1,26 @@
 #include "oops/proc/task/status.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <fstream>
 #include <ostream>
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <vector>
 
 #include "fmt/format.h"
 #include "scn/scan.h"
 
 #include "oops/key_value_parser.h"
+#include "oops/str.h"
 
 namespace oops {
-// Uid特化
-template <>
-bool ParseField(std::string_view s, proc::task::status::Info::Uid &uid, std::string_view) {
+namespace proc {
+namespace task {
+namespace status {
+namespace {
+bool ScanUid(std::string_view s, Info::Uid &uid) {
     auto res{scn::scan<uid_t, uid_t, uid_t, uid_t>(s, "{} {} {} {}")};
     if (!res) {
         return false;
@@ -24,14 +29,11 @@ bool ParseField(std::string_view s, proc::task::status::Info::Uid &uid, std::str
     return true;
 }
 
-template <>
-std::string FormatField(const proc::task::status::Info::Uid &uid, std::string_view) {
+std::string FormatUid(const Info::Uid &uid) {
     return fmt::format("{} {} {} {}", uid.real, uid.effective, uid.saved_set, uid.filesystem);
 }
 
-// Gid特化
-template <>
-bool ParseField(std::string_view s, proc::task::status::Info::Gid &gid, std::string_view) {
+bool ScanGid(std::string_view s, Info::Gid &gid) {
     auto res{scn::scan<gid_t, gid_t, gid_t, gid_t>(s, "{} {} {} {}")};
     if (!res) {
         return false;
@@ -40,14 +42,11 @@ bool ParseField(std::string_view s, proc::task::status::Info::Gid &gid, std::str
     return true;
 }
 
-template <>
-std::string FormatField(const proc::task::status::Info::Gid &gid, std::string_view) {
+std::string FormatGid(const Info::Gid &gid) {
     return fmt::format("{} {} {} {}", gid.real, gid.effective, gid.saved_set, gid.filesystem);
 }
 
-// SigQ特化
-template <>
-bool ParseField(std::string_view s, proc::task::status::Info::SigQ &sig_q, std::string_view) {
+bool ScanSigQ(std::string_view s, Info::SigQ &sig_q) {
     auto res{scn::scan<std::size_t, std::size_t>(s, "{}/{}")};
     if (!res) {
         return false;
@@ -56,80 +55,126 @@ bool ParseField(std::string_view s, proc::task::status::Info::SigQ &sig_q, std::
     return true;
 }
 
-template <>
-std::string FormatField(const proc::task::status::Info::SigQ &sig_q, std::string_view) {
-    return fmt::format("{}/{}", sig_q.count, sig_q.limit);
+std::string FormatSigQ(const Info::SigQ &sig_q) { return fmt::format("{}/{}", sig_q.count, sig_q.limit); }
+
+bool ScanMask(std::string_view s, std::bitset<64> &bs) {
+    std::uint64_t v{};
+    if (!ScanField(s, v, "{:x}")) {
+        return false;
+    }
+    bs = std::bitset<64>{v};
+    return true;
 }
 
-namespace proc {
-namespace task {
-namespace status {
-namespace {
-using TL = meta::TypeList<
-    std::string, std::size_t, std::bitset<64>, pid_t, mode_t, bool, KiBs, Info::Uid, Info::Gid, Info::SigQ,
-    std::vector<gid_t>, std::vector<pid_t>, std::vector<std::string>, std::vector<bool>>;
-KeyValueParser<Info, Field, TL> kvparser{
-    {{Field::NAME, "Name", &Info::name},
-     {Field::UMASK, "Umask", &Info::umask, "{:o}", "{:04o}"},
-     {Field::STATE, "State", &Info::state},
-     {Field::TGID, "Tgid", &Info::tgid},
-     {Field::NGID, "Ngid", &Info::ngid},
-     {Field::PID, "Pid", &Info::pid},
-     {Field::PPID, "PPid", &Info::ppid},
-     {Field::TRACER_PID, "TracerPid", &Info::tracer_pid},
-     {Field::UID, "Uid", &Info::uid},
-     {Field::GID, "Gid", &Info::gid},
-     {Field::FD_SIZE, "FDSize", &Info::fd_size},
-     {Field::GROUPS, "Groups", &Info::groups},
-     {Field::NS_TGID, "NStgid", &Info::ns_tgid},
-     {Field::NS_PID, "NSpid", &Info::ns_pid},
-     {Field::NS_PGID, "NSpgid", &Info::ns_pgid},
-     {Field::NS_SID, "NSsid", &Info::ns_sid},
-     {Field::KTHREAD, "Kthread", &Info::kthread},
-     {Field::VM_PEAK, "VmPeak", &Info::vm_peak, "{} kB"},
-     {Field::VM_SIZE, "VmSize", &Info::vm_size, "{} kB"},
-     {Field::VM_LCK, "VmLck", &Info::vm_lck, "{} kB"},
-     {Field::VM_PIN, "VmPin", &Info::vm_pin, "{} kB"},
-     {Field::VM_HWM, "VmHWM", &Info::vm_hwm, "{} kB"},
-     {Field::VM_RSS, "VmRSS", &Info::vm_rss, "{} kB"},
-     {Field::RSS_ANON, "RssAnon", &Info::rss_anon, "{} kB"},
-     {Field::RSS_FILE, "RssFile", &Info::rss_file, "{} kB"},
-     {Field::RSS_SHMEM, "RssShmem", &Info::rss_shmem, "{} kB"},
-     {Field::VM_DATA, "VmData", &Info::vm_data, "{} kB"},
-     {Field::VM_STK, "VmStk", &Info::vm_stk, "{} kB"},
-     {Field::VM_EXE, "VmExe", &Info::vm_exe, "{} kB"},
-     {Field::VM_LIB, "VmLib", &Info::vm_lib, "{} kB"},
-     {Field::VM_PTE, "VmPTE", &Info::vm_pte, "{} kB"},
-     {Field::VM_SWAP, "VmSwap", &Info::vm_swap, "{} kB"},
-     {Field::HUGETLB_PAGES, "HugetlbPages", &Info::hugetlb_pages, "{} kB"},
-     {Field::CORE_DUMPING, "CoreDumping", &Info::core_dumping},
-     {Field::THP_ENABLED, "THP_enabled", &Info::thp_enabled},
-     {Field::UNTAG_MASK, "untag_mask", &Info::untag_mask, "{:x}", "{:#x}"},
-     {Field::THREADS, "Threads", &Info::threads},
-     {Field::SIG_Q, "SigQ", &Info::sig_q},
-     {Field::SIG_PND, "SigPnd", &Info::sig_pnd, "{:x}", "{:016x}"},
-     {Field::SHD_PND, "ShdPnd", &Info::shd_pnd, "{:x}", "{:016x}"},
-     {Field::SIG_BLK, "SigBlk", &Info::sig_blk, "{:x}", "{:016x}"},
-     {Field::SIG_IGNORED, "SigIgn", &Info::sig_ign, "{:x}", "{:016x}"},
-     {Field::SIG_CGT, "SigCgt", &Info::sig_cgt, "{:x}", "{:016x}"},
-     {Field::CAP_INH, "CapInh", &Info::cap_inh, "{:x}", "{:016x}"},
-     {Field::CAP_PRM, "CapPrm", &Info::cap_prm, "{:x}", "{:016x}"},
-     {Field::CAP_EFF, "CapEff", &Info::cap_eff, "{:x}", "{:016x}"},
-     {Field::CAP_BND, "CapBnd", &Info::cap_bnd, "{:x}", "{:016x}"},
-     {Field::CAP_AMB, "CapAmb", &Info::cap_amb, "{:x}", "{:016x}"},
-     {Field::NO_NEW_PRIVS, "NoNewPrivs", &Info::no_new_privs},
-     {Field::SECCOMP, "Seccomp", &Info::seccomp},
-     {Field::SECCOMP_FILTERS, "Seccomp_filters", &Info::seccomp_filters},
-     {Field::SPECULATION_STORE_BYPASS, "Speculation_Store_Bypass", &Info::speculation_store_bypass},
-     {Field::SPECULATION_INDIRECT_BRANCH, "SpeculationIndirectBranch", &Info::speculation_indirect_branch},
-     {Field::CPUS_ALLOWED, "Cpus_allowed", &Info::cpus_allowed, "%*pb"},
-     {Field::CPUS_ALLOWED_LIST, "Cpus_allowed_list", &Info::cpus_allowed_list},
-     {Field::MEMS_ALLOWED, "Mems_allowed", &Info::mems_allowed, "%*pb"},
-     {Field::MEMS_ALLOWED_LIST, "Mems_allowed_list", &Info::mems_allowed_list},
-     {Field::VOLUNTARY_CTXT_SWITCHES, "voluntary_ctxt_switches", &Info::voluntary_ctxt_switches},
-     {Field::NONVOLUNTARY_CTXT_SWITCHES, "nonvoluntary_ctxt_switches", &Info::nonvoluntary_ctxt_switches},
-     {Field::X86_THREAD_FEATURES, "x86_Thread_features", &Info::x86_thread_features},
-     {Field::X86_THREAD_FEATURES_LOCKED, "x86_Thread_features_locked", &Info::x86_thread_features_locked}}};
+std::string FormatMask(const std::bitset<64> &bs) { return fmt::format("{:016x}", bs.to_ullong()); }
+
+// 动态位掩码：Linux内核%pb格式，逗号分隔16进制组、高位组在前
+bool ScanBitmap(std::string_view s, std::vector<bool> &v) {
+    std::vector<std::uint32_t> chunks;
+    std::size_t digits{0};
+    for (auto token : Split(s, ',')) {
+        token = Strip(token);
+        std::uint32_t chunk{};
+        if (token.empty() || (!chunks.empty() && token.size() != 8) || !ScanField(token, chunk, "{:x}")) {
+            return false;
+        }
+        chunks.push_back(chunk);
+        digits += token.size();
+    }
+
+    v.assign(digits * 4, false);
+    for (std::size_t c{0}; c < chunks.size(); ++c) {
+        for (std::size_t b{0}; b < 32; ++b) {
+            if (chunks[c] & (1u << b)) {
+                v[(chunks.size() - 1 - c) * 32 + b] = true; // 首个chunk为最高组
+            }
+        }
+    }
+    return true;
+}
+
+std::string FormatBitmap(const std::vector<bool> &v) {
+    const std::size_t digits{(v.size() + 3) / 4};
+    const std::size_t chunks{(digits + 7) / 8};
+    std::string s;
+    s.reserve(digits + chunks - 1);
+    for (std::size_t c{chunks}; c-- > 0;) {
+        std::uint32_t chunk{};
+        for (std::size_t b{0}; b < 32 && c * 32 + b < v.size(); ++b) {
+            if (v[c * 32 + b]) {
+                chunk |= 1u << b;
+            }
+        }
+        s += fmt::format("{:0{}x}", chunk, c == chunks - 1 ? digits - 8 * (chunks - 1) : 8);
+        if (c > 0) {
+            s += ',';
+        }
+    }
+    return s;
+}
+
+KeyValueParser<Info, Field> kvparser{
+    {{Field::NAME, "Name", CW<&Info::name>},
+     {Field::UMASK, "Umask", CW<&Info::umask>, "{:o}", "{:04o}"},
+     {Field::STATE, "State", CW<&Info::state>},
+     {Field::TGID, "Tgid", CW<&Info::tgid>},
+     {Field::NGID, "Ngid", CW<&Info::ngid>},
+     {Field::PID, "Pid", CW<&Info::pid>},
+     {Field::PPID, "PPid", CW<&Info::ppid>},
+     {Field::TRACER_PID, "TracerPid", CW<&Info::tracer_pid>},
+     {Field::UID, "Uid", CW<&Info::uid>, CW<ScanUid>, CW<FormatUid>},
+     {Field::GID, "Gid", CW<&Info::gid>, CW<ScanGid>, CW<FormatGid>},
+     {Field::FD_SIZE, "FDSize", CW<&Info::fd_size>},
+     {Field::GROUPS, "Groups", CW<&Info::groups>},
+     {Field::NS_TGID, "NStgid", CW<&Info::ns_tgid>},
+     {Field::NS_PID, "NSpid", CW<&Info::ns_pid>},
+     {Field::NS_PGID, "NSpgid", CW<&Info::ns_pgid>},
+     {Field::NS_SID, "NSsid", CW<&Info::ns_sid>},
+     {Field::KTHREAD, "Kthread", CW<&Info::kthread>},
+     {Field::VM_PEAK, "VmPeak", CW<&Info::vm_peak>, "{} kB"},
+     {Field::VM_SIZE, "VmSize", CW<&Info::vm_size>, "{} kB"},
+     {Field::VM_LCK, "VmLck", CW<&Info::vm_lck>, "{} kB"},
+     {Field::VM_PIN, "VmPin", CW<&Info::vm_pin>, "{} kB"},
+     {Field::VM_HWM, "VmHWM", CW<&Info::vm_hwm>, "{} kB"},
+     {Field::VM_RSS, "VmRSS", CW<&Info::vm_rss>, "{} kB"},
+     {Field::RSS_ANON, "RssAnon", CW<&Info::rss_anon>, "{} kB"},
+     {Field::RSS_FILE, "RssFile", CW<&Info::rss_file>, "{} kB"},
+     {Field::RSS_SHMEM, "RssShmem", CW<&Info::rss_shmem>, "{} kB"},
+     {Field::VM_DATA, "VmData", CW<&Info::vm_data>, "{} kB"},
+     {Field::VM_STK, "VmStk", CW<&Info::vm_stk>, "{} kB"},
+     {Field::VM_EXE, "VmExe", CW<&Info::vm_exe>, "{} kB"},
+     {Field::VM_LIB, "VmLib", CW<&Info::vm_lib>, "{} kB"},
+     {Field::VM_PTE, "VmPTE", CW<&Info::vm_pte>, "{} kB"},
+     {Field::VM_SWAP, "VmSwap", CW<&Info::vm_swap>, "{} kB"},
+     {Field::HUGETLB_PAGES, "HugetlbPages", CW<&Info::hugetlb_pages>, "{} kB"},
+     {Field::CORE_DUMPING, "CoreDumping", CW<&Info::core_dumping>},
+     {Field::THP_ENABLED, "THP_enabled", CW<&Info::thp_enabled>},
+     {Field::UNTAG_MASK, "untag_mask", CW<&Info::untag_mask>, "{:x}", "{:#x}"},
+     {Field::THREADS, "Threads", CW<&Info::threads>},
+     {Field::SIG_Q, "SigQ", CW<&Info::sig_q>, CW<ScanSigQ>, CW<FormatSigQ>},
+     {Field::SIG_PND, "SigPnd", CW<&Info::sig_pnd>, CW<ScanMask>, CW<FormatMask>},
+     {Field::SHD_PND, "ShdPnd", CW<&Info::shd_pnd>, CW<ScanMask>, CW<FormatMask>},
+     {Field::SIG_BLK, "SigBlk", CW<&Info::sig_blk>, CW<ScanMask>, CW<FormatMask>},
+     {Field::SIG_IGNORED, "SigIgn", CW<&Info::sig_ign>, CW<ScanMask>, CW<FormatMask>},
+     {Field::SIG_CGT, "SigCgt", CW<&Info::sig_cgt>, CW<ScanMask>, CW<FormatMask>},
+     {Field::CAP_INH, "CapInh", CW<&Info::cap_inh>, CW<ScanMask>, CW<FormatMask>},
+     {Field::CAP_PRM, "CapPrm", CW<&Info::cap_prm>, CW<ScanMask>, CW<FormatMask>},
+     {Field::CAP_EFF, "CapEff", CW<&Info::cap_eff>, CW<ScanMask>, CW<FormatMask>},
+     {Field::CAP_BND, "CapBnd", CW<&Info::cap_bnd>, CW<ScanMask>, CW<FormatMask>},
+     {Field::CAP_AMB, "CapAmb", CW<&Info::cap_amb>, CW<ScanMask>, CW<FormatMask>},
+     {Field::NO_NEW_PRIVS, "NoNewPrivs", CW<&Info::no_new_privs>},
+     {Field::SECCOMP, "Seccomp", CW<&Info::seccomp>},
+     {Field::SECCOMP_FILTERS, "Seccomp_filters", CW<&Info::seccomp_filters>},
+     {Field::SPECULATION_STORE_BYPASS, "Speculation_Store_Bypass", CW<&Info::speculation_store_bypass>},
+     {Field::SPECULATION_INDIRECT_BRANCH, "SpeculationIndirectBranch", CW<&Info::speculation_indirect_branch>},
+     {Field::CPUS_ALLOWED, "Cpus_allowed", CW<&Info::cpus_allowed>, CW<ScanBitmap>, CW<FormatBitmap>},
+     {Field::CPUS_ALLOWED_LIST, "Cpus_allowed_list", CW<&Info::cpus_allowed_list>},
+     {Field::MEMS_ALLOWED, "Mems_allowed", CW<&Info::mems_allowed>, CW<ScanBitmap>, CW<FormatBitmap>},
+     {Field::MEMS_ALLOWED_LIST, "Mems_allowed_list", CW<&Info::mems_allowed_list>},
+     {Field::VOLUNTARY_CTXT_SWITCHES, "voluntary_ctxt_switches", CW<&Info::voluntary_ctxt_switches>},
+     {Field::NONVOLUNTARY_CTXT_SWITCHES, "nonvoluntary_ctxt_switches", CW<&Info::nonvoluntary_ctxt_switches>},
+     {Field::X86_THREAD_FEATURES, "x86_Thread_features", CW<&Info::x86_thread_features>},
+     {Field::X86_THREAD_FEATURES_LOCKED, "x86_Thread_features_locked", CW<&Info::x86_thread_features_locked>}}};
 } // namespace
 
 Info Get() { return Get(~FieldMask{}); }
