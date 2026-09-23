@@ -46,7 +46,7 @@ std::string BakeFormat(const Struct &obj, std::string_view ctx) {
 } // namespace detail
 
 template <typename S, typename F>
-class KeyValueParser {
+class KeyValueIO {
 public:
     static_assert(std::is_enum_v<F>);
 
@@ -82,15 +82,15 @@ public:
         std::string_view format_ctx{};
     };
 
-    explicit KeyValueParser(std::initializer_list<Entry> entries) : field_table_{entries} {}
-    KeyValueParser(std::initializer_list<Entry> entries, std::string delim)
+    explicit KeyValueIO(std::initializer_list<Entry> entries) : field_table_{entries} {}
+    KeyValueIO(std::initializer_list<Entry> entries, std::string delim)
         : field_table_{entries}, delim_{std::move(delim)} {}
-    KeyValueParser(std::initializer_list<Entry> entries, bool (*stop)(std::string_view))
+    KeyValueIO(std::initializer_list<Entry> entries, bool (*stop)(std::string_view))
         : field_table_{entries}, stop_{stop} {}
-    KeyValueParser(std::initializer_list<Entry> entries, std::string delim, bool (*stop)(std::string_view))
+    KeyValueIO(std::initializer_list<Entry> entries, std::string delim, bool (*stop)(std::string_view))
         : field_table_{entries}, delim_{std::move(delim)}, stop_{stop} {}
 
-    EnumBitset<Field> Parse(std::istream &is, Struct &obj, const EnumBitset<Field> &field_mask) {
+    EnumBitset<Field> Scan(std::istream &is, Struct &obj, const EnumBitset<Field> &field_mask) {
         EnumBitset<Field> parsed;
         std::streampos line_start{is.tellg()};
         std::string buf;

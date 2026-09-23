@@ -11,7 +11,7 @@
 
 #include "fmt/format.h"
 
-#include "oops/key_value_parser.h"
+#include "oops/key_value_io.h"
 #include "oops/str.h"
 
 namespace oops {
@@ -66,7 +66,7 @@ std::string FormatVmFlags(const VmaExt::VmFlags &vm_flags) {
     return s;
 }
 
-KeyValueParser<VmaExt, Field> kvparser{
+KeyValueIO<VmaExt, Field> kvio{
     {{Field::SIZE, "Size", CW<&VmaExt::size>, "{} kB"},
      {Field::KERNEL_PAGE_SIZE, "KernelPageSize", CW<&VmaExt::kernel_page_size>, "{} kB"},
      {Field::MMU_PAGE_SIZE, "MMUPageSize", CW<&VmaExt::mmu_page_size>, "{} kB"},
@@ -107,7 +107,7 @@ Info Get(std::istream &is, const FieldMask &field_mask) {
     while (is.peek() != EOF) {
         VmaExt vma_ext;
         if (field_mask.Test(Field::VMA)) {
-            auto res{ParseVma(is)};
+            auto res{ScanVma(is)};
             if (res) {
                 vma_ext.vma = std::move(res.vma);
                 vma_ext.parsed.Set(Field::VMA);
@@ -115,7 +115,7 @@ Info Get(std::istream &is, const FieldMask &field_mask) {
         } else {
             is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
         }
-        vma_ext.parsed |= kvparser.Parse(is, vma_ext, field_mask);
+        vma_ext.parsed |= kvio.Scan(is, vma_ext, field_mask);
         info.vma_table.push_back(std::move(vma_ext));
     }
     return info;
@@ -138,7 +138,7 @@ std::ostream &operator<<(std::ostream &os, const Info &info) {
         if (vma_ext.parsed.Test(Field::VMA)) {
             FormatVma(os, vma_ext.vma);
         }
-        kvparser.Format(os, vma_ext, vma_ext.parsed);
+        kvio.Format(os, vma_ext, vma_ext.parsed);
     }
     return os;
 }

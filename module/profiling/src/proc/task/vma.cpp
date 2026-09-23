@@ -18,8 +18,8 @@ namespace task {
 std::uint32_t Vma::MajorDev() const { return major(dev); }
 std::uint32_t Vma::MinorDev() const { return minor(dev); }
 
-ParseVmaResult ParseVma(std::istream &is) {
-    ParseVmaResult res;
+ScanVmaResult ScanVma(std::istream &is) {
+    ScanVmaResult res;
 
     std::streampos checkpoint{is.tellg()};
     std::string buf;

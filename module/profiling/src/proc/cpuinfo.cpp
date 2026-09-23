@@ -6,13 +6,13 @@
 #include <ostream>
 #include <utility>
 
-#include "oops/key_value_parser.h"
+#include "oops/key_value_io.h"
 
 namespace oops {
 namespace proc {
 namespace cpuinfo {
 namespace {
-KeyValueParser<Entry, Field> kvparser{
+KeyValueIO<Entry, Field> kvio{
     {{Field::PROCESSOR, "processor", CW<&Entry::processor>},
      {Field::VENDOR_ID, "vendor_id", CW<&Entry::vendor_id>},
      {Field::CPU_FAMILY, "cpu family", CW<&Entry::cpu_family>},
@@ -54,7 +54,7 @@ Info Get(std::istream &is, const FieldMask &field_mask) {
     Info info;
     while (is.peek() != EOF) {
         Entry processor;
-        processor.parsed |= kvparser.Parse(is, processor, field_mask);
+        processor.parsed |= kvio.Scan(is, processor, field_mask);
         info.table.push_back(std::move(processor));
         is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     }
@@ -63,7 +63,7 @@ Info Get(std::istream &is, const FieldMask &field_mask) {
 
 std::ostream &operator<<(std::ostream &os, const Info &info) {
     for (const auto &processor : info.table) {
-        kvparser.Format(os, processor, processor.parsed);
+        kvio.Format(os, processor, processor.parsed);
         os << '\n';
     }
     return os;
