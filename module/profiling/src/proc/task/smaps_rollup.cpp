@@ -8,14 +8,14 @@
 
 #include "fmt/format.h"
 
-#include "oops/key_value_parser.h"
+#include "oops/key_value_io.h"
 
 namespace oops {
 namespace proc {
 namespace task {
 namespace smaps_rollup {
 namespace {
-KeyValueParser<Info, Field> kvparser{
+KeyValueIO<Info, Field> kvio{
     {{Field::RSS, "Rss", CW<&Info::rss>, "{} kB"},
      {Field::PSS, "Pss", CW<&Info::pss>, "{} kB"},
      {Field::PSS_DIRTY, "Pss_Dirty", CW<&Info::pss_dirty>, "{} kB"},
@@ -50,7 +50,7 @@ Info Get(std::istream &is) { return Get(is, ~FieldMask{}); }
 Info Get(std::istream &is, const FieldMask &field_mask) {
     Info info;
     if (field_mask.Test(Field::VMA)) {
-        auto res{ParseVma(is)};
+        auto res{ScanVma(is)};
         if (res) {
             info.vma = std::move(res.vma);
             info.parsed.Set(Field::VMA);
@@ -59,7 +59,7 @@ Info Get(std::istream &is, const FieldMask &field_mask) {
         // 跳过VMA行
         is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     }
-    info.parsed |= kvparser.Parse(is, info, field_mask);
+    info.parsed |= kvio.Scan(is, info, field_mask);
     return info;
 }
 
@@ -79,7 +79,7 @@ std::ostream &operator<<(std::ostream &os, const Info &info) {
     if (info.parsed.Test(Field::VMA)) {
         FormatVma(os, info.vma);
     }
-    kvparser.Format(os, info, info.parsed);
+    kvio.Format(os, info, info.parsed);
     return os;
 }
 } // namespace smaps_rollup

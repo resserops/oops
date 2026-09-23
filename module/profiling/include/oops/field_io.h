@@ -113,7 +113,7 @@ std::string FormatField(const std::vector<T> &v, std::string_view ctx) {
     return s;
 }
 
-// Storage<R, P>特化：输出
+// Storage特化，ctx透传至R
 template <typename R, typename P>
 bool ScanField(std::string_view s, Storage<R, P> &storage, std::string_view ctx) {
     R r{};

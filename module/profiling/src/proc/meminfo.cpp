@@ -4,13 +4,13 @@
 #include <istream>
 #include <ostream>
 
-#include "oops/key_value_parser.h"
+#include "oops/key_value_io.h"
 
 namespace oops {
 namespace proc {
 namespace meminfo {
 namespace {
-KeyValueParser<Info, Field> kvparser{
+KeyValueIO<Info, Field> kvio{
     {{Field::MEM_TOTAL, "MemTotal", CW<&Info::mem_total>, "{} kB"},
      {Field::MEM_FREE, "MemFree", CW<&Info::mem_free>, "{} kB"},
      {Field::MEM_AVAILABLE, "MemAvailable", CW<&Info::mem_available>, "{} kB"},
@@ -77,12 +77,12 @@ Info Get(const FieldMask &field_mask) {
 Info Get(std::istream &is) { return Get(is, ~FieldMask{}); }
 Info Get(std::istream &is, const FieldMask &field_mask) {
     Info info;
-    info.parsed |= kvparser.Parse(is, info, field_mask);
+    info.parsed |= kvio.Scan(is, info, field_mask);
     return info;
 }
 
 std::ostream &operator<<(std::ostream &os, const Info &info) {
-    kvparser.Format(os, info, info.parsed);
+    kvio.Format(os, info, info.parsed);
     return os;
 }
 } // namespace meminfo

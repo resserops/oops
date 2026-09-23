@@ -18,7 +18,7 @@ Info Get() {
 
 Info Get(std::istream &is) {
     Info info;
-    while (auto res{ParseVma(is)}) {
+    while (auto res{ScanVma(is)}) {
         info.vma_table.push_back(std::move(res.vma));
     }
     return info;

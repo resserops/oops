@@ -31,12 +31,12 @@ struct Vma {
     std::string pathname{};
 };
 
-struct ParseVmaResult {
+struct ScanVmaResult {
     explicit operator bool() const noexcept { return !failed; }
     Vma vma;
     bool failed{};
 };
-ParseVmaResult ParseVma(std::istream &is);
+ScanVmaResult ScanVma(std::istream &is);
 void FormatVma(std::ostream &os, const Vma &vma);
 } // namespace task
 } // namespace proc

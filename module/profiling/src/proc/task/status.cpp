@@ -12,7 +12,7 @@
 #include "fmt/format.h"
 #include "scn/scan.h"
 
-#include "oops/key_value_parser.h"
+#include "oops/key_value_io.h"
 #include "oops/str.h"
 
 namespace oops {
@@ -113,7 +113,7 @@ std::string FormatBitmap(const std::vector<bool> &v) {
     return s;
 }
 
-KeyValueParser<Info, Field> kvparser{
+KeyValueIO<Info, Field> kvio{
     {{Field::NAME, "Name", CW<&Info::name>},
      {Field::UMASK, "Umask", CW<&Info::umask>, "{:o}", "{:04o}"},
      {Field::STATE, "State", CW<&Info::state>},
@@ -186,7 +186,7 @@ Info Get(const FieldMask &field_mask) {
 Info Get(std::istream &is) { return Get(is, ~FieldMask{}); }
 Info Get(std::istream &is, const FieldMask &field_mask) {
     Info info;
-    info.parsed |= kvparser.Parse(is, info, field_mask);
+    info.parsed |= kvio.Scan(is, info, field_mask);
     return info;
 }
 
@@ -203,7 +203,7 @@ Info Get(pid_t pid, pid_t tid, const FieldMask &field_mask) {
 }
 
 std::ostream &operator<<(std::ostream &os, const Info &info) {
-    kvparser.Format(os, info, info.parsed);
+    kvio.Format(os, info, info.parsed);
     return os;
 }
 } // namespace status
