@@ -15,9 +15,12 @@
 #include "oops/str.h"
 
 namespace oops {
-// proc::task::smaps::VmaExt::VmFlags特化
+namespace proc {
+namespace task {
+namespace smaps {
+namespace {
 struct VmFlagsEntry {
-    using VmFlags = proc::task::smaps::VmaExt::VmFlags;
+    using VmFlags = VmaExt::VmFlags;
     std::string_view key;
     void (*set)(VmFlags &);
     bool (*get)(const VmFlags &);
@@ -34,8 +37,7 @@ constexpr VmFlagsEntry VM_FLAGS_TABLE[]{ENTRY(rd), ENTRY(wr), ENTRY(ex), ENTRY(s
                                         ENTRY(nh), ENTRY(mg), ENTRY(um), ENTRY(uw)};
 #undef ENTRY
 
-template <>
-bool ParseField(std::string_view s, proc::task::smaps::VmaExt::VmFlags &vm_flags, std::string_view) {
+bool ScanVmFlags(std::string_view s, VmaExt::VmFlags &vm_flags) {
     bool failed{false};
     for (auto token : Split(s)) {
         auto it{std::find_if(
@@ -49,8 +51,7 @@ bool ParseField(std::string_view s, proc::task::smaps::VmaExt::VmFlags &vm_flags
     return !failed;
 }
 
-template <>
-std::string FormatField(const proc::task::smaps::VmaExt::VmFlags &vm_flags, std::string_view) {
+std::string FormatVmFlags(const VmaExt::VmFlags &vm_flags) {
     std::string s;
     s.reserve(64); // one cache line
     for (const auto &item : VM_FLAGS_TABLE) {
@@ -65,35 +66,31 @@ std::string FormatField(const proc::task::smaps::VmaExt::VmFlags &vm_flags, std:
     return s;
 }
 
-namespace proc {
-namespace task {
-namespace smaps {
-namespace {
-KeyValueParser<VmaExt, Field, meta::TypeList<KiBs, bool, decltype(VmaExt::vm_flags)>> kvparser{
-    {{Field::SIZE, "Size", &VmaExt::size, "{} kB"},
-     {Field::KERNEL_PAGE_SIZE, "KernelPageSize", &VmaExt::kernel_page_size, "{} kB"},
-     {Field::MMU_PAGE_SIZE, "MMUPageSize", &VmaExt::mmu_page_size, "{} kB"},
-     {Field::RSS, "Rss", &VmaExt::rss, "{} kB"},
-     {Field::PSS, "Pss", &VmaExt::pss, "{} kB"},
-     {Field::PSS_DIRTY, "Pss_Dirty", &VmaExt::pss_dirty, "{} kB"},
-     {Field::SHARED_CLEAN, "Shared_Clean", &VmaExt::shared_clean, "{} kB"},
-     {Field::SHARED_DIRTY, "Shared_Dirty", &VmaExt::shared_dirty, "{} kB"},
-     {Field::PRIVATE_CLEAN, "Private_Clean", &VmaExt::private_clean, "{} kB"},
-     {Field::PRIVATE_DIRTY, "Private_Dirty", &VmaExt::private_dirty, "{} kB"},
-     {Field::REFERENCED, "Referenced", &VmaExt::referenced, "{} kB"},
-     {Field::ANONYMOUS, "Anonymous", &VmaExt::anonymous, "{} kB"},
-     {Field::KSM, "KSM", &VmaExt::ksm, "{} kB"},
-     {Field::LAZY_FREE, "LazyFree", &VmaExt::lazy_free, "{} kB"},
-     {Field::ANON_HUGE_PAGES, "AnonHugePages", &VmaExt::anon_huge_pages, "{} kB"},
-     {Field::SHMEM_PMD_MAPPED, "ShmemPmdMapped", &VmaExt::shmem_pmd_mapped, "{} kB"},
-     {Field::FILE_PMD_MAPPED, "FilePmdMapped", &VmaExt::file_pmd_mapped, "{} kB"},
-     {Field::SHARED_HUGETLB, "Shared_Hugetlb", &VmaExt::shared_hugetlb, "{} kB"},
-     {Field::PRIVATE_HUGETLB, "Private_Hugetlb", &VmaExt::private_hugetlb, "{} kB"},
-     {Field::SWAP, "Swap", &VmaExt::swap, "{} kB"},
-     {Field::SWAP_PSS, "SwapPss", &VmaExt::swap_pss, "{} kB"},
-     {Field::LOCKED, "Locked", &VmaExt::locked, "{} kB"},
-     {Field::THP_ELIGIBLE, "THPeligible", &VmaExt::thp_eligible},
-     {Field::VM_FLAGS, "VmFlags", &VmaExt::vm_flags}},
+KeyValueParser<VmaExt, Field> kvparser{
+    {{Field::SIZE, "Size", CW<&VmaExt::size>, "{} kB"},
+     {Field::KERNEL_PAGE_SIZE, "KernelPageSize", CW<&VmaExt::kernel_page_size>, "{} kB"},
+     {Field::MMU_PAGE_SIZE, "MMUPageSize", CW<&VmaExt::mmu_page_size>, "{} kB"},
+     {Field::RSS, "Rss", CW<&VmaExt::rss>, "{} kB"},
+     {Field::PSS, "Pss", CW<&VmaExt::pss>, "{} kB"},
+     {Field::PSS_DIRTY, "Pss_Dirty", CW<&VmaExt::pss_dirty>, "{} kB"},
+     {Field::SHARED_CLEAN, "Shared_Clean", CW<&VmaExt::shared_clean>, "{} kB"},
+     {Field::SHARED_DIRTY, "Shared_Dirty", CW<&VmaExt::shared_dirty>, "{} kB"},
+     {Field::PRIVATE_CLEAN, "Private_Clean", CW<&VmaExt::private_clean>, "{} kB"},
+     {Field::PRIVATE_DIRTY, "Private_Dirty", CW<&VmaExt::private_dirty>, "{} kB"},
+     {Field::REFERENCED, "Referenced", CW<&VmaExt::referenced>, "{} kB"},
+     {Field::ANONYMOUS, "Anonymous", CW<&VmaExt::anonymous>, "{} kB"},
+     {Field::KSM, "KSM", CW<&VmaExt::ksm>, "{} kB"},
+     {Field::LAZY_FREE, "LazyFree", CW<&VmaExt::lazy_free>, "{} kB"},
+     {Field::ANON_HUGE_PAGES, "AnonHugePages", CW<&VmaExt::anon_huge_pages>, "{} kB"},
+     {Field::SHMEM_PMD_MAPPED, "ShmemPmdMapped", CW<&VmaExt::shmem_pmd_mapped>, "{} kB"},
+     {Field::FILE_PMD_MAPPED, "FilePmdMapped", CW<&VmaExt::file_pmd_mapped>, "{} kB"},
+     {Field::SHARED_HUGETLB, "Shared_Hugetlb", CW<&VmaExt::shared_hugetlb>, "{} kB"},
+     {Field::PRIVATE_HUGETLB, "Private_Hugetlb", CW<&VmaExt::private_hugetlb>, "{} kB"},
+     {Field::SWAP, "Swap", CW<&VmaExt::swap>, "{} kB"},
+     {Field::SWAP_PSS, "SwapPss", CW<&VmaExt::swap_pss>, "{} kB"},
+     {Field::LOCKED, "Locked", CW<&VmaExt::locked>, "{} kB"},
+     {Field::THP_ELIGIBLE, "THPeligible", CW<&VmaExt::thp_eligible>},
+     {Field::VM_FLAGS, "VmFlags", CW<&VmaExt::vm_flags>, CW<ScanVmFlags>, CW<FormatVmFlags>}},
     ":",
     [](std::string_view s) { return s.find('-') != std::string_view::npos; }};
 } // namespace
