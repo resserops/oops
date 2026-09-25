@@ -10,3 +10,6 @@
 [submodule "third_party/scnlib"]
 	path = third_party/scnlib
 	url = https://github.com/eliaskosunen/scnlib.git
+[submodule "third_party/fast_float"]
+	path = third_party/fast_float
+	url = https://github.com/fastfloat/fast_float.git

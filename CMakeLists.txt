@@ -28,6 +28,7 @@ endif()
 
 # 引入三方库依赖
 include(${oops_3rd_cmake_dir}/argparse.cmake)
+include(${oops_3rd_cmake_dir}/fastfloat.cmake)
 include(${oops_3rd_cmake_dir}/fmt.cmake)
 include(${oops_3rd_cmake_dir}/scnlib.cmake)
 if(ENABLE_TEST)
