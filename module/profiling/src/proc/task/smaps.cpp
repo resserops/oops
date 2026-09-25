@@ -89,7 +89,7 @@ KeyValueIO<VmaExt, Field> kvio{
      {Field::SWAP, "Swap", CW<&VmaExt::swap>, "{} kB"},
      {Field::SWAP_PSS, "SwapPss", CW<&VmaExt::swap_pss>, "{} kB"},
      {Field::LOCKED, "Locked", CW<&VmaExt::locked>, "{} kB"},
-     {Field::THP_ELIGIBLE, "THPeligible", CW<&VmaExt::thp_eligible>},
+     {Field::THP_ELIGIBLE, "THPeligible", CW<&VmaExt::thp_eligible>, "{:d}"},
      {Field::VM_FLAGS, "VmFlags", CW<&VmaExt::vm_flags>, CW<ScanVmFlags>, CW<FormatVmFlags>}},
     ":",
     [](std::string_view s) { return s.find('-') != std::string_view::npos; }};

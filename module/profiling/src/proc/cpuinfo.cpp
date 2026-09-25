@@ -4,6 +4,8 @@
 #include <istream>
 #include <limits>
 #include <ostream>
+#include <string>
+#include <string_view>
 #include <utility>
 
 #include "oops/key_value_io.h"
@@ -12,6 +14,20 @@ namespace oops {
 namespace proc {
 namespace cpuinfo {
 namespace {
+bool ScanYesNo(std::string_view s, bool &b) {
+    if (s == "yes") {
+        b = true;
+        return true;
+    }
+    if (s == "no") {
+        b = false;
+        return true;
+    }
+    return false;
+}
+
+std::string FormatYesNo(const bool &b) { return b ? "yes" : "no"; }
+
 KeyValueIO<Entry, Field> kvio{
     {{Field::PROCESSOR, "processor", CW<&Entry::processor>},
      {Field::VENDOR_ID, "vendor_id", CW<&Entry::vendor_id>},
@@ -28,10 +44,10 @@ KeyValueIO<Entry, Field> kvio{
      {Field::CPU_CORES, "cpu cores", CW<&Entry::cpu_cores>},
      {Field::APICID, "apicid", CW<&Entry::apicid>},
      {Field::INITIAL_APICID, "initial apicid", CW<&Entry::initial_apicid>},
-     {Field::FPU, "fpu", CW<&Entry::fpu>, "yes/no"},
-     {Field::FPU_EXCEPTION, "fpu_exception", CW<&Entry::fpu_exception>, "yes/no"},
+     {Field::FPU, "fpu", CW<&Entry::fpu>, CW<&ScanYesNo>, CW<&FormatYesNo>},
+     {Field::FPU_EXCEPTION, "fpu_exception", CW<&Entry::fpu_exception>, CW<&ScanYesNo>, CW<&FormatYesNo>},
      {Field::CPUID_LEVEL, "cpuid level", CW<&Entry::cpuid_level>},
-     {Field::WP, "wp", CW<&Entry::wp>, "yes/no"},
+     {Field::WP, "wp", CW<&Entry::wp>, CW<&ScanYesNo>, CW<&FormatYesNo>},
      {Field::FLAGS, "flags", CW<&Entry::flags>},
      {Field::BUGS, "bugs", CW<&Entry::bugs>},
      {Field::BOGOMIPS, "bogomips", CW<&Entry::bogomips>},

@@ -35,12 +35,22 @@ std::string BakeFormat(const Struct &obj, std::string_view) {
 }
 
 template <typename Struct, auto Member>
-bool BakeScan(std::string_view s, Struct &obj, std::string_view ctx) {
+bool BakeScan(std::string_view s, Struct &obj, std::string_view) {
+    return ScanField(s, obj.*Member);
+}
+
+template <typename Struct, auto Member>
+std::string BakeFormat(const Struct &obj, std::string_view) {
+    return FormatField(obj.*Member);
+}
+
+template <typename Struct, auto Member>
+bool BakeScanCtx(std::string_view s, Struct &obj, std::string_view ctx) {
     return ScanField(s, obj.*Member, ctx);
 }
 
 template <typename Struct, auto Member>
-std::string BakeFormat(const Struct &obj, std::string_view ctx) {
+std::string BakeFormatCtx(const Struct &obj, std::string_view ctx) {
     return FormatField(obj.*Member, ctx);
 }
 } // namespace detail
@@ -66,13 +76,13 @@ public:
 
         template <std::size_t N, auto Member, std::size_t N2>
         Entry(Field f, const char (&k)[N], ConstantWrapper<Member>, const char (&ctx)[N2])
-            : field{f}, key{k, N - 1}, scan{&detail::BakeScan<Struct, Member>},
-              format{&detail::BakeFormat<Struct, Member>}, scan_ctx{ctx, N2 - 1}, format_ctx{ctx, N2 - 1} {}
+            : field{f}, key{k, N - 1}, scan{&detail::BakeScanCtx<Struct, Member>},
+              format{&detail::BakeFormatCtx<Struct, Member>}, scan_ctx{ctx, N2 - 1}, format_ctx{ctx, N2 - 1} {}
 
         template <std::size_t N, auto Member, std::size_t N2, std::size_t N3>
         Entry(Field f, const char (&k)[N], ConstantWrapper<Member>, const char (&pctx)[N2], const char (&fctx)[N3])
-            : field{f}, key{k, N - 1}, scan{&detail::BakeScan<Struct, Member>},
-              format{&detail::BakeFormat<Struct, Member>}, scan_ctx{pctx, N2 - 1}, format_ctx{fctx, N3 - 1} {}
+            : field{f}, key{k, N - 1}, scan{&detail::BakeScanCtx<Struct, Member>},
+              format{&detail::BakeFormatCtx<Struct, Member>}, scan_ctx{pctx, N2 - 1}, format_ctx{fctx, N3 - 1} {}
 
         Field field;
         std::string_view key;

@@ -4,6 +4,10 @@ if(NOT EXISTS "${lib_dir}/CMakeLists.txt")
     execute_process(COMMAND git submodule update --init --recursive ${lib_dir})
 endif()
 
+if(TARGET FastFloat::fast_float)
+    set(SCN_USE_EXTERNAL_FAST_FLOAT ON)
+endif()
+
 add_subdirectory(${lib_dir})
 if(TARGET scn)
     set_target_properties(scn PROPERTIES POSITION_INDEPENDENT_CODE ON)

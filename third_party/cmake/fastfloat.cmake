@@ -1,10 +1,7 @@
-# fmt-12.1.0 (407c905e)
-set(lib_dir ${oops_3rd_dir}/fmt)
+# fast_float-6.1.6 (00c8c7b0)
+set(lib_dir ${oops_3rd_dir}/fast_float)
 if(NOT EXISTS "${lib_dir}/CMakeLists.txt")
     execute_process(COMMAND git submodule update --init --recursive ${lib_dir})
 endif()
 
 add_subdirectory(${lib_dir})
-if(TARGET fmt)
-    set_target_properties(fmt PROPERTIES POSITION_INDEPENDENT_CODE ON)
-endif()
