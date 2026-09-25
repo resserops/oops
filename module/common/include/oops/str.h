@@ -3,7 +3,6 @@
 #include <array>
 #include <cstddef>
 #include <limits>
-#include <sstream>
 #include <string>
 #include <string_view>
 
@@ -229,27 +228,4 @@ inline std::string Remove(std::string_view s, std::string_view chars = SPACE) {
     return RemoveIf(s, [&chars](char c) { return chars.find(c) != std::string_view::npos; });
 }
 
-// 后续使用lexcial_cast替代
-template <typename T>
-::std::string ToStr(const T &t) {
-    ::std::ostringstream oss;
-    oss << t;
-    return oss.str();
-}
-
-template <typename T>
-T FromStr(const ::std::string_view sv) {
-    ::std::istringstream iss{::std::string{sv}}; // TODO(resserops): 优化自定义stream
-    T t{};
-    iss >> t;
-    if (iss.fail()) {
-        throw ::std::invalid_argument{""}; // TODO(resserops): 填写详细错误信息
-    }
-    return t;
-}
-
-template <>
-inline ::std::string FromStr<::std::string>(const ::std::string_view sv) {
-    return ::std::string{sv};
-}
 } // namespace oops

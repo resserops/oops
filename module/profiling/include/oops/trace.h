@@ -14,7 +14,6 @@
 
 #include "oops/trace_detail.h"
 
-#include "oops/format.h"
 #include "oops/once.h"
 #include "oops/str.h"
 

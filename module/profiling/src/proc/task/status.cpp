@@ -59,7 +59,7 @@ std::string FormatSigQ(const Info::SigQ &sig_q) { return fmt::format("{}/{}", si
 
 bool ScanMask(std::string_view s, std::bitset<64> &bs) {
     std::uint64_t v{};
-    if (!ScanField(s, v, "{:x}")) {
+    if (!Scan(s, v, "{:x}")) {
         return false;
     }
     bs = std::bitset<64>{v};
@@ -75,7 +75,7 @@ bool ScanBitmap(std::string_view s, std::vector<bool> &v) {
     for (auto token : Split(s, ',')) {
         token = Strip(token);
         std::uint32_t chunk{};
-        if (token.empty() || (!chunks.empty() && token.size() != 8) || !ScanField(token, chunk, "{:x}")) {
+        if (token.empty() || (!chunks.empty() && token.size() != 8) || !Scan(token, chunk, "{:x}")) {
             return false;
         }
         chunks.push_back(chunk);
