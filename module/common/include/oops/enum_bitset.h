@@ -4,17 +4,17 @@
 namespace oops {
 template <typename E>
 constexpr auto ToUnderlying(E e) noexcept {
-    static_assert(::std::is_enum_v<E>);
-    return static_cast<::std::underlying_type_t<E>>(e);
+    static_assert(std::is_enum_v<E>);
+    return static_cast<std::underlying_type_t<E>>(e);
 }
 
 template <typename E>
-class EnumBitset : public ::std::bitset<ToUnderlying(E::COUNT)> {
+class EnumBitset : public std::bitset<ToUnderlying(E::COUNT)> {
 public:
-    static_assert(::std::is_enum_v<E>);
-    using UnderlyingType = ::std::underlying_type_t<E>;
+    static_assert(std::is_enum_v<E>);
+    using UnderlyingType = std::underlying_type_t<E>;
     static constexpr UnderlyingType COUNT{ToUnderlying(E::COUNT)};
-    using Bitset = ::std::bitset<COUNT>;
+    using Bitset = std::bitset<COUNT>;
     static constexpr Bitset ONE{1};
 
     using Bitset::bitset;

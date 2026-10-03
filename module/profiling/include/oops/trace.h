@@ -1,6 +1,7 @@
 #pragma once
 #include <cassert>
 #include <chrono>
+#include <cstddef>
 #include <functional>
 #include <iomanip>
 #include <iostream>
@@ -11,8 +12,6 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
-
-#include "oops/trace_detail.h"
 
 #include "oops/once.h"
 #include "oops/str.h"
@@ -85,6 +84,24 @@
 #endif
 
 namespace oops {
+struct Sample;
+
+namespace detail {
+// TRACE宏可变参数解析
+constexpr std::size_t ParseTraceVaArgs() { return 0; }
+constexpr std::size_t ParseTraceVaArgs(std::size_t mask) { return mask; }
+
+using SampleHandler = std::function<void(const Sample &)>;
+struct TraceVaArgs {
+    std::size_t mask;
+    const SampleHandler &sample_handler;
+};
+
+inline TraceVaArgs ParseTraceVaArgs(std::size_t mask, const SampleHandler &sample_handler) {
+    return {mask, sample_handler};
+}
+} // namespace detail
+
 // TARCE mask参数配置
 constexpr std::size_t MEM = 1;
 constexpr std::size_t MEM_ONCE = 1ul << 1;

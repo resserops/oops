@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 #include <string>
-#include <type_traits>
 #include <vector>
 
 #include "fmt/format.h"
@@ -18,7 +17,7 @@ public:
         std::size_t min_width{0};
     };
 
-    FTable &SetDelim(const ::std::string &delim);
+    FTable &SetDelim(const std::string &delim);
     FTable &SetProp(const Prop &prop);
     FTable &SetProp(std::size_t j, const Prop &prop);
 
@@ -37,26 +36,16 @@ public:
         return *this;
     }
 
-    void Output(::std::ostream &out) const;
+    void Output(std::ostream &out) const;
 
 private:
     const Prop &GetProp(std::size_t j) const;
 
-    ::std::string delim_{" "};
-    ::std::vector<::std::vector<::std::string>> table_{{}};
-    ::std::vector<Prop> col_prop_vec_;
+    std::string delim_{" "};
+    std::vector<std::vector<std::string>> table_{{}};
+    std::vector<Prop> col_prop_vec_;
     Prop table_prop_;
 };
 
-// 为所有定义Output函数的类重载<<运算符
-template <typename T, typename = void>
-struct HasOutput : ::std::false_type {};
-template <typename T>
-struct HasOutput<T, ::std::void_t<decltype(::std::declval<T>().Output(::std::declval<::std::ostream &>()))>>
-    : ::std::true_type {};
-template <typename T>
-typename ::std::enable_if<HasOutput<T>::value, ::std::ostream &>::type operator<<(::std::ostream &os, const T &obj) {
-    obj.Output(os);
-    return os;
-}
+std::ostream &operator<<(std::ostream &os, const FTable &table);
 } // namespace oops
