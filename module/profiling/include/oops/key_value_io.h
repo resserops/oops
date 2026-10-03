@@ -36,22 +36,22 @@ std::string BakeFormat(const Struct &obj, std::string_view) {
 
 template <typename Struct, auto Member>
 bool BakeScan(std::string_view s, Struct &obj, std::string_view) {
-    return ScanField(s, obj.*Member);
+    return Scan(s, obj.*Member);
 }
 
 template <typename Struct, auto Member>
 std::string BakeFormat(const Struct &obj, std::string_view) {
-    return FormatField(obj.*Member);
+    return Format(obj.*Member);
 }
 
 template <typename Struct, auto Member>
 bool BakeScanCtx(std::string_view s, Struct &obj, std::string_view ctx) {
-    return ScanField(s, obj.*Member, ctx);
+    return Scan(s, obj.*Member, ctx);
 }
 
 template <typename Struct, auto Member>
 std::string BakeFormatCtx(const Struct &obj, std::string_view ctx) {
-    return FormatField(obj.*Member, ctx);
+    return Format(obj.*Member, ctx);
 }
 } // namespace detail
 

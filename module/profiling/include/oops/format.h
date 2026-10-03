@@ -1,35 +1,12 @@
 #pragma once
 #include <cstdint>
-#include <iomanip>
-#include <sstream>
 #include <string>
 #include <type_traits>
 #include <vector>
 
-#include "oops/str.h"
+#include "fmt/format.h"
 
 namespace oops {
-template <typename F>
-class FFloatPoint {
-    static_assert(::std::is_floating_point_v<F>);
-    enum Format : std::uint8_t { FIXED, SCI };
-
-public:
-    explicit FFloatPoint(F f) : f_{f} {}
-    FFloatPoint &Sci();
-    FFloatPoint &Fixed();
-    FFloatPoint &SetPrecision(std::uint8_t precision);
-    void Output(std::ostream &out) const;
-
-private:
-    Format format_{FIXED};
-    std::uint8_t precision_{2};
-    F f_;
-};
-
-using FFloat = FFloatPoint<float>;
-using FDouble = FFloatPoint<double>;
-
 class FTable {
 public:
     enum Align : std::uint8_t { LEFT, CENTER, RIGHT };
@@ -47,13 +24,13 @@ public:
 
     template <typename... Args>
     FTable &AppendRow(const Args &...args) {
-        table_.back() = {ToStr(args)...};
+        table_.back() = {fmt::format("{}", args)...};
         table_.emplace_back();
         return *this;
     }
     template <typename T>
     FTable &Append(const T &t, bool end = false) {
-        table_.back().push_back({ToStr(t)});
+        table_.back().push_back({fmt::format("{}", t)});
         if (end) {
             table_.emplace_back();
         }

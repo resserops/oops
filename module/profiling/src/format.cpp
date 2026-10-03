@@ -1,41 +1,8 @@
 #include "oops/format.h"
 
+#include <ostream>
+
 namespace oops {
-// FFloatPoint
-template <typename F>
-FFloatPoint<F> &FFloatPoint<F>::Sci() {
-    format_ = SCI;
-    return *this;
-}
-
-template <typename F>
-FFloatPoint<F> &FFloatPoint<F>::Fixed() {
-    format_ = FIXED;
-    return *this;
-}
-
-template <typename F>
-FFloatPoint<F> &FFloatPoint<F>::SetPrecision(std::uint8_t precision) {
-    precision_ = precision;
-    return *this;
-}
-
-template <typename F>
-void FFloatPoint<F>::Output(std::ostream &out) const {
-    std::ostringstream oss;
-    if (format_ == FIXED) {
-        oss << std::fixed;
-    } else if (format_ == SCI) {
-        oss << std::scientific;
-    }
-    oss << std::setprecision(precision_);
-    oss << f_;
-    out << oss.str();
-}
-
-template class FFloatPoint<float>;
-template class FFloatPoint<double>;
-
 // FTable
 FTable &FTable::SetDelim(const std::string &delim) {
     delim_ = delim;

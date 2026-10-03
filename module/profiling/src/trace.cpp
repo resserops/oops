@@ -1,6 +1,8 @@
 #include "oops/trace.h"
 #include "unistd.h"
 
+#include "oops/field_io.h"
+#include "oops/format.h"
 #include "oops/proc/task/status.h"
 
 namespace oops {
@@ -84,10 +86,10 @@ void RecordTable::Output(std::ostream &out) const {
     ftable.AppendRow(
         "Lable", "Count", "Time (s)", "Time (%)", "CPUTime (s)", "EFFC", "RSS (G)", "HWM (G)", "Swap (G)", "Location");
     for (const auto &record : records) {
-        std::string time_ratio_str{ToStr(FFloatPoint{100 * record.GetTime() / root_itv.GetTime()}) + "%"};
-        std::string time_str{ToStr(FFloatPoint{record.GetTime()}.SetPrecision(3))};
-        std::string cpu_time_str{ToStr(FFloatPoint{record.GetCpuTime()}.SetPrecision(3))};
-        std::string effc{ToStr(FFloatPoint{record.GetEffCores()}.SetPrecision(1))};
+        std::string time_ratio_str{Format(100 * record.GetTime() / root_itv.GetTime(), "{:.2f}") + "%"};
+        std::string time_str{Format(record.GetTime(), "{:.3f}")};
+        std::string cpu_time_str{Format(record.GetCpuTime(), "{:.3f}")};
+        std::string effc{Format(record.GetEffCores(), "{:.1f}")};
         ftable.AppendRow(
             Repeat("  ", record.depth) + record.GetLabelStr(), record.count, time_str, time_ratio_str, cpu_time_str,
             effc, record.GetRssGiB(), record.GetHwmGiB(), record.GetSwapGiB(), record.GetLocationStr());
