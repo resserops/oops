@@ -72,4 +72,9 @@ const FTable::Prop &FTable::GetProp(std::size_t j) const {
     }
     return table_prop_;
 }
+
+std::ostream &operator<<(std::ostream &os, const FTable &table) {
+    table.Output(os);
+    return os;
+}
 } // namespace oops
