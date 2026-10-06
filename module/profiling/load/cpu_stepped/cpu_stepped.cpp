@@ -222,7 +222,7 @@ int main(int argc, char *argv[]) {
         std::cout.flush();
 
         std::this_thread::sleep_until(next_time);
-        auto cpu_usage_pct{cpu_timer.Lap().CpuUsagePct()};
+        auto cpu_usage_pct{100 * cpu_timer.Lap().EqCPUs()};
         std::ostringstream actual_usage_oss;
         actual_usage_oss << std::fixed << std::setprecision(2) << cpu_usage_pct;
         std::cout << std::setw(10) << actual_usage_oss.str() + '%' << std::endl;
