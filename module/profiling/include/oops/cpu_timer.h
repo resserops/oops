@@ -255,8 +255,7 @@ public:
     struct Duration {
         double ElapsedSeconds() const { return std::chrono::duration<double>{elapsed}.count(); }
         double CpuSeconds() const { return std::chrono::duration<double>{cpu}.count(); }
-        double CpuUsage() const { return CpuSeconds() / ElapsedSeconds(); }
-        double CpuUsagePct() const { return 100 * CpuUsage(); }
+        double EqCPUs() const { return CpuSeconds() / ElapsedSeconds(); }
 
         typename Timer<ElapsedClock>::Duration elapsed{};
         typename Timer<CpuClock>::Duration cpu{};

@@ -36,7 +36,7 @@ struct Args {
 enum class MetricGroup : uint8_t { CPU_USAGE, CPU_FREQ, MEMORY, COUNT };
 oops::EnumBitset<MetricGroup> ENABLED_METRIC_GROUP;
 
-enum class Metrics : uint8_t { CPU_EQ_CORES, CPU_AVG_GHZ, CPU_MIN_GHZ, RSS, HWM, SWAP, COUNT };
+enum class Metrics : uint8_t { CPU_EQ_CORES, CPU_USAGE, CPU_AVG_GHZ, CPU_MIN_GHZ, RSS, HWM, SWAP, COUNT };
 
 struct MetricEntry {
     std::string_view name;
@@ -46,15 +46,28 @@ struct MetricEntry {
 };
 
 constexpr MetricEntry METRIC_TABLE[]{
-    {"EqCPUs", 8, MetricGroup::CPU_USAGE},      {"AvgGHz", 8, MetricGroup::CPU_FREQ, true},
-    {"MinGHz", 8, MetricGroup::CPU_FREQ, true}, {"RSS(G)", 8, MetricGroup::MEMORY},
-    {"HWM(G)", 8, MetricGroup::MEMORY},         {"Swap(G)", 8, MetricGroup::MEMORY}};
+    {"EqCPUs", 8, MetricGroup::CPU_USAGE},      {"%Usage", 8, MetricGroup::CPU_USAGE},
+    {"AvgGHz", 8, MetricGroup::CPU_FREQ, true}, {"MinGHz", 8, MetricGroup::CPU_FREQ, true},
+    {"RSS(G)", 8, MetricGroup::MEMORY},         {"HWM(G)", 8, MetricGroup::MEMORY},
+    {"Swap(G)", 8, MetricGroup::MEMORY}};
 static_assert(std::size(METRIC_TABLE) == oops::ToUnderlying(Metrics::COUNT));
 
 bool ProcExist(pid_t pid) {
     static std::string path{"/proc/" + std::to_string(pid)};
     struct stat buffer;
     return stat(path.c_str(), &buffer) == 0;
+}
+
+std::size_t CpuCount() {
+    auto f = []() -> std::size_t {
+        auto np{sysconf(_SC_NPROCESSORS_ONLN)};
+        if (np < 1) {
+            return 0;
+        }
+        return np;
+    };
+    static const std::size_t res{f()};
+    return res;
 }
 
 std::string TimestampToStr(std::chrono::system_clock::time_point time_point) {
@@ -128,6 +141,9 @@ void RegisterSignalHandler() {
 }
 
 void Measure() {
+    // 注册信号
+    RegisterSignalHandler();
+
     std::cout << std::fixed << std::setprecision(2);
     if (ARGS.mode == Mode::SYSTEM_WIDE) {
         std::cout << "tracked pid: system-wide" << std::endl;
@@ -138,9 +154,6 @@ void Measure() {
 
     // itv转换为毫秒定点数
     std::chrono::milliseconds itv{static_cast<std::size_t>(1000 * ARGS.itv)};
-
-    // 注册信号
-    RegisterSignalHandler();
 
     // 系统时钟盖时间戳，单调时钟算时间差
     auto system_now{std::chrono::system_clock::now()};
@@ -167,7 +180,11 @@ void Measure() {
 
         // CPU利用率
         if (ENABLED_METRIC_GROUP.Test(MetricGroup::CPU_USAGE)) {
-            values[oops::ToUnderlying(Metrics::CPU_EQ_CORES)] = TRY_OR(cpu_timer.Lap().CpuUsage(), .0);
+            double eq_cpus{TRY_OR(cpu_timer.Lap().EqCPUs(), .0)};
+            values[oops::ToUnderlying(Metrics::CPU_EQ_CORES)] = eq_cpus;
+            // 所有用满为100%,核数未知时置0
+            std::size_t cpus{CpuCount()};
+            values[oops::ToUnderlying(Metrics::CPU_USAGE)] = cpus > 0 ? 100 * eq_cpus / cpus : .0;
         }
 
         // CPU主频
@@ -196,8 +213,6 @@ void Measure() {
                 values[oops::ToUnderlying(Metrics::SWAP)] = oops::Storage<double, oops::GiB>{info.vm_swap}.Count();
             }
         }
-
-        // 打印测量结果
         std::cout << MakeDataRow(values) << std::endl;
 
         ++step;
