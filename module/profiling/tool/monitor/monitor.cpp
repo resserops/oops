@@ -33,7 +33,7 @@ struct Args {
 } ARGS;
 
 // 指标定义
-enum class MetricGroup : uint8_t { CPU, MEMORY, COUNT };
+enum class MetricGroup : uint8_t { CPU_USAGE, CPU_FREQ, MEMORY, COUNT };
 oops::EnumBitset<MetricGroup> ENABLED_METRIC_GROUP;
 
 enum class Metrics : uint8_t { CPU_EQ_CORES, CPU_AVG_GHZ, CPU_MIN_GHZ, RSS, HWM, SWAP, COUNT };
@@ -45,9 +45,10 @@ struct MetricEntry {
     bool only_system_wide{false};
 };
 
-constexpr MetricEntry METRIC_TABLE[]{{"EqCPUs", 8, MetricGroup::CPU},       {"AvgGHz", 8, MetricGroup::CPU, true},
-                                     {"MinGHz", 8, MetricGroup::CPU, true}, {"RSS(G)", 8, MetricGroup::MEMORY},
-                                     {"HWM(G)", 8, MetricGroup::MEMORY},    {"Swap(G)", 8, MetricGroup::MEMORY}};
+constexpr MetricEntry METRIC_TABLE[]{
+    {"EqCPUs", 8, MetricGroup::CPU_USAGE},      {"AvgGHz", 8, MetricGroup::CPU_FREQ, true},
+    {"MinGHz", 8, MetricGroup::CPU_FREQ, true}, {"RSS(G)", 8, MetricGroup::MEMORY},
+    {"HWM(G)", 8, MetricGroup::MEMORY},         {"Swap(G)", 8, MetricGroup::MEMORY}};
 static_assert(std::size(METRIC_TABLE) == oops::ToUnderlying(Metrics::COUNT));
 
 bool ProcExist(pid_t pid) {
@@ -164,18 +165,19 @@ void Measure() {
     while (!STOP.load(std::memory_order_relaxed) && (ARGS.mode == Mode::SYSTEM_WIDE || ProcExist(ARGS.pid))) {
         std::this_thread::sleep_until(next_time);
 
-        if (ENABLED_METRIC_GROUP.Test(MetricGroup::CPU)) {
-            // 等效核数
+        // CPU利用率
+        if (ENABLED_METRIC_GROUP.Test(MetricGroup::CPU_USAGE)) {
             values[oops::ToUnderlying(Metrics::CPU_EQ_CORES)] = TRY_OR(cpu_timer.Lap().CpuUsage(), .0);
-
-            // CPU主频
-            if (ARGS.mode != Mode::PID) {
-                auto freq{oops::cpu_freq::Get()};
-                values[oops::ToUnderlying(Metrics::CPU_AVG_GHZ)] = freq.Average() / 1000.;
-                values[oops::ToUnderlying(Metrics::CPU_MIN_GHZ)] = freq.Min() / 1000.;
-            }
         }
 
+        // CPU主频
+        if (ENABLED_METRIC_GROUP.Test(MetricGroup::CPU_FREQ) && ARGS.mode != Mode::PID) {
+            auto freq{oops::cpu_freq::Get()};
+            values[oops::ToUnderlying(Metrics::CPU_AVG_GHZ)] = freq.Average() / 1000.;
+            values[oops::ToUnderlying(Metrics::CPU_MIN_GHZ)] = freq.Min() / 1000.;
+        }
+
+        // 内存
         if (ENABLED_METRIC_GROUP.Test(MetricGroup::MEMORY)) {
             if (ARGS.mode == Mode::SYSTEM_WIDE) {
                 using namespace oops::proc::meminfo;
@@ -216,7 +218,8 @@ void ParseArgs(int argc, char *argv[]) {
         .scan<'g', double>()
         .default_value(1.);
     program.add_argument("-m", "--metric")
-        .help("comma-separated sequence of metrics to monitor (supported metrics: cpu[c], memory[m])")
+        .help("comma-separated sequence of metrics to monitor (supported metrics: cpu[c], cpu-freq[cf], cpu-usage[cu], "
+              "memory[m])")
         .default_value("all");
     program.add_argument("-f", "--fallback")
         .help("fall back to system-wide acquisition for metrics without pid-wide support")
@@ -258,22 +261,45 @@ void ParseArgs(int argc, char *argv[]) {
     auto metric_tokens{oops::Split(metric, ',')};
 
     for (auto token : metric_tokens) {
-        bool matched{false};
-        if ((token == "all" || token == "cpu" || token == "c") && !ENABLED_METRIC_GROUP.Test(MetricGroup::CPU)) {
-            ENABLED_METRIC_GROUP.Set(MetricGroup::CPU);
-            matched = true;
-        }
-        if ((token == "all" || token == "memory" || token == "mem" || token == "m") &&
-            !ENABLED_METRIC_GROUP.Test(MetricGroup::MEMORY)) {
+        if (token == "all") {
+            ENABLED_METRIC_GROUP.Set(MetricGroup::CPU_USAGE);
+            ENABLED_METRIC_GROUP.Set(MetricGroup::CPU_FREQ);
             ENABLED_METRIC_GROUP.Set(MetricGroup::MEMORY);
-            matched = true;
-        }
-        if (!matched) {
-            std::cerr << "error: unexpected metric '" << token << "'" << std::endl;
-            exit(1);
+        } else if (token == "cpu" || token == "c") {
+            ENABLED_METRIC_GROUP.Set(MetricGroup::CPU_USAGE);
+            ENABLED_METRIC_GROUP.Set(MetricGroup::CPU_FREQ);
+        } else if (token == "cpu-usage" || token == "cu") {
+            ENABLED_METRIC_GROUP.Set(MetricGroup::CPU_USAGE);
+        } else if (token == "cpu-freq" || token == "cf") {
+            ENABLED_METRIC_GROUP.Set(MetricGroup::CPU_FREQ);
+        } else if (token == "memory" || token == "mem" || token == "m") {
+            ENABLED_METRIC_GROUP.Set(MetricGroup::MEMORY);
+        } else {
+            std::cerr << "warning: unexpected metric '" << token << "', ignored" << std::endl;
         }
     }
     if (ENABLED_METRIC_GROUP.none()) {
+        std::cerr << "error: no metrics available" << std::endl;
+        exit(1);
+    }
+
+    if (ARGS.mode != Mode::PID) {
+        return;
+    }
+
+    // 检查PID模式下是否至少有一个可采集指标
+    bool has_metric{false};
+    for (const MetricEntry &entry : METRIC_TABLE) {
+        if (!ENABLED_METRIC_GROUP.Test(entry.group)) {
+            continue;
+        }
+        if (entry.only_system_wide) {
+            std::cerr << "warning: metric '" << entry.name << "' is system-wide only, ignored in pid mode" << std::endl;
+        } else {
+            has_metric = true;
+        }
+    }
+    if (!has_metric) {
         std::cerr << "error: no metrics available" << std::endl;
         exit(1);
     }
