@@ -210,7 +210,7 @@ private:
     CpuClockVar clock_;
 };
 
-// 定义相关定时器
+// 定时器
 template <typename Clock>
 class Timer {
 public:

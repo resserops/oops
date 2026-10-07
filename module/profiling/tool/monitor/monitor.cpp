@@ -33,10 +33,10 @@ struct Args {
 } ARGS;
 
 // 指标定义
-enum class MetricGroup : uint8_t { CPU_USAGE, CPU_FREQ, MEMORY, COUNT };
+enum class MetricGroup : uint8_t { CPU_USAGE, CPU_FREQ, MEMORY, DEBUG, COUNT };
 oops::EnumBitset<MetricGroup> ENABLED_METRIC_GROUP;
 
-enum class Metrics : uint8_t { CPU_EQ_CORES, CPU_USAGE, CPU_AVG_GHZ, CPU_MIN_GHZ, RSS, HWM, SWAP, COUNT };
+enum class Metrics : uint8_t { CPU_EQ_CORES, CPU_USAGE, CPU_AVG_GHZ, CPU_MIN_GHZ, RSS, HWM, SWAP, DUTY, SCALE, COUNT };
 
 struct MetricEntry {
     std::string_view name;
@@ -49,7 +49,8 @@ constexpr MetricEntry METRIC_TABLE[]{
     {"EqCPUs", 8, MetricGroup::CPU_USAGE},      {"%Usage", 8, MetricGroup::CPU_USAGE},
     {"AvgGHz", 8, MetricGroup::CPU_FREQ, true}, {"MinGHz", 8, MetricGroup::CPU_FREQ, true},
     {"RSS(G)", 8, MetricGroup::MEMORY},         {"HWM(G)", 8, MetricGroup::MEMORY},
-    {"Swap(G)", 8, MetricGroup::MEMORY}};
+    {"Swap(G)", 8, MetricGroup::MEMORY},        {"%Duty", 8, MetricGroup::DEBUG},
+    {"%Scale", 8, MetricGroup::DEBUG}};
 static_assert(std::size(METRIC_TABLE) == oops::ToUnderlying(Metrics::COUNT));
 
 bool ProcExist(pid_t pid) {
@@ -164,6 +165,7 @@ void Measure() {
         cpu_timer_kind = oops::UniCpuClock::Kind::PID;
     }
     oops::UniCpuTimer cpu_timer(cpu_timer_kind, ARGS.pid);
+    oops::Timer<std::chrono::steady_clock> debug_timer;
 
     std::cout << "timestamp: " << TimestampToStr(system_now) << '\n' << std::endl;
     std::size_t step{0};
@@ -174,24 +176,28 @@ void Measure() {
     std::cout << MakeHeaderRow() << std::endl;
 
     std::vector<double> values(oops::ToUnderlying(Metrics::COUNT));
-    double system_wide_hwm{0.};
+    double system_wide_hwm{};
+
     while (!STOP.load(std::memory_order_relaxed) && (ARGS.mode == Mode::SYSTEM_WIDE || ProcExist(ARGS.pid))) {
         std::this_thread::sleep_until(next_time);
+        std::chrono::steady_clock::time_point t_prev{};
+        if (ENABLED_METRIC_GROUP.Test(MetricGroup::DEBUG)) {
+            values[oops::ToUnderlying(Metrics::SCALE)] = 100 * std::chrono::duration<double>{debug_timer.Lap()} / itv;
+            t_prev = debug_timer.GetPrev();
+        }
 
         // CPU利用率
         if (ENABLED_METRIC_GROUP.Test(MetricGroup::CPU_USAGE)) {
-            double eq_cpus{TRY_OR(cpu_timer.Lap().EqCPUs(), .0)};
+            double eq_cpus{TRY_OR(cpu_timer.Lap().EqCPUs(), 0.)};
             values[oops::ToUnderlying(Metrics::CPU_EQ_CORES)] = eq_cpus;
-            // 所有用满为100%,核数未知时置0
-            std::size_t cpus{CpuCount()};
-            values[oops::ToUnderlying(Metrics::CPU_USAGE)] = cpus > 0 ? 100 * eq_cpus / cpus : .0;
+            values[oops::ToUnderlying(Metrics::CPU_USAGE)] = TRY_OR(100 * eq_cpus / CpuCount(), 0.);
         }
 
         // CPU主频
         if (ENABLED_METRIC_GROUP.Test(MetricGroup::CPU_FREQ) && ARGS.mode != Mode::PID) {
             auto freq{oops::cpu_freq::Get()};
-            values[oops::ToUnderlying(Metrics::CPU_AVG_GHZ)] = freq.Average() / 1000.;
-            values[oops::ToUnderlying(Metrics::CPU_MIN_GHZ)] = freq.Min() / 1000.;
+            values[oops::ToUnderlying(Metrics::CPU_AVG_GHZ)] = freq.Average() / 1000;
+            values[oops::ToUnderlying(Metrics::CPU_MIN_GHZ)] = freq.Min() / 1000;
         }
 
         // 内存
@@ -199,9 +205,9 @@ void Measure() {
             if (ARGS.mode == Mode::SYSTEM_WIDE) {
                 using namespace oops::proc::meminfo;
                 auto info{Get(Field::ANON_PAGES | Field::MAPPED | Field::SWAP_TOTAL | Field::SWAP_FREE)};
-                values[oops::ToUnderlying(Metrics::RSS)] =
-                    oops::Storage<double, oops::GiB>{info.anon_pages + info.mapped}.Count();
-                system_wide_hwm = std::max(system_wide_hwm, values[oops::ToUnderlying(Metrics::RSS)]);
+                double rss{oops::Storage<double, oops::GiB>{info.anon_pages + info.mapped}.Count()};
+                values[oops::ToUnderlying(Metrics::RSS)] = rss;
+                system_wide_hwm = std::max(system_wide_hwm, rss);
                 values[oops::ToUnderlying(Metrics::HWM)] = system_wide_hwm;
                 values[oops::ToUnderlying(Metrics::SWAP)] =
                     oops::Storage<double, oops::GiB>{info.swap_total - info.swap_free}.Count();
@@ -212,6 +218,11 @@ void Measure() {
                 values[oops::ToUnderlying(Metrics::HWM)] = oops::Storage<double, oops::GiB>{info.vm_hwm}.Count();
                 values[oops::ToUnderlying(Metrics::SWAP)] = oops::Storage<double, oops::GiB>{info.vm_swap}.Count();
             }
+        }
+
+        if (ENABLED_METRIC_GROUP.Test(MetricGroup::DEBUG)) {
+            values[oops::ToUnderlying(Metrics::DUTY)] =
+                100 * std::chrono::duration<double>{std::chrono::steady_clock::now() - t_prev} / itv;
         }
         std::cout << MakeDataRow(values) << std::endl;
 
@@ -233,8 +244,8 @@ void ParseArgs(int argc, char *argv[]) {
         .scan<'g', double>()
         .default_value(1.);
     program.add_argument("-m", "--metric")
-        .help("comma-separated sequence of metrics to monitor (supported metrics: cpu[c], cpu-freq[cf], cpu-usage[cu], "
-              "memory[m])")
+        .help("comma-separated sequence of metrics to monitor (supported metrics: all[a], cpu[c], cpu-freq[cf], "
+              "cpu-usage[cu], memory[m], debug[d])")
         .default_value("all");
     program.add_argument("-f", "--fallback")
         .help("fall back to system-wide acquisition for metrics without pid-wide support")
@@ -276,7 +287,7 @@ void ParseArgs(int argc, char *argv[]) {
     auto metric_tokens{oops::Split(metric, ',')};
 
     for (auto token : metric_tokens) {
-        if (token == "all") {
+        if (token == "all" || token == "a") {
             ENABLED_METRIC_GROUP.Set(MetricGroup::CPU_USAGE);
             ENABLED_METRIC_GROUP.Set(MetricGroup::CPU_FREQ);
             ENABLED_METRIC_GROUP.Set(MetricGroup::MEMORY);
@@ -289,6 +300,8 @@ void ParseArgs(int argc, char *argv[]) {
             ENABLED_METRIC_GROUP.Set(MetricGroup::CPU_FREQ);
         } else if (token == "memory" || token == "mem" || token == "m") {
             ENABLED_METRIC_GROUP.Set(MetricGroup::MEMORY);
+        } else if (token == "debug" || token == "d") {
+            ENABLED_METRIC_GROUP.Set(MetricGroup::DEBUG);
         } else {
             std::cerr << "warning: unexpected metric '" << token << "', ignored" << std::endl;
         }
