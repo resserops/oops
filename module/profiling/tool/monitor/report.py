@@ -5,41 +5,54 @@ import sys
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from enum import Enum
 from glob import glob as glob_match
 from pathlib import Path
 
+# 全局变量
 AUTO_RESOLUTION = 960
-METRIC_TABLE = {
-    "cpu_eq_cores": "EqCPUs",
-    "cpu_avg_ghz": "AvgGHz",
-    "cpu_min_ghz": "MinGHz",
-    "rss": "RSS(G)",
-    "hwm": "HWM(G)",
-    "swap": "Swap(G)",
-}
 
 
+# 指标定义
+class Merge(str, Enum):
+    MEAN = "mean"  # 周期均值/瞬时采样
+    MIN = "min"    # 周期内极小值
+    MAX = "max"    # 周期内极大值
+
+
+@dataclass(frozen=True)
+class Metric:
+    name: str                  # 数据列名称
+    merge: Merge = Merge.MEAN  # 数据点合并方式
+    step: bool = False         # 是否使用阶梯图（默认折线图）
+
+
+CPU_EQ_CORES = Metric("EqCPUs", step=True)
+CPU_USAGE = Metric("%Usage", step=True)
+CPU_AVG_GHZ = Metric("AvgGHz", step=True)
+CPU_MIN_GHZ = Metric("MinGHz", merge=Merge.MIN, step=True)
+RSS = Metric("RSS(G)")
+HWM = Metric("HWM(G)", merge=Merge.MAX)
+SWAP = Metric("Swap(G)")
+METRICS = (CPU_EQ_CORES, CPU_USAGE, CPU_AVG_GHZ, CPU_MIN_GHZ, RSS, HWM, SWAP)
+
+
+# 存储单个测量结果文件
 @dataclass
-class MetricDataEntry:
-    name: str
-    values: list = field(default_factory=list)
-
-
-@dataclass
-class RawDataEntry:
+class FileData:
     raw_file_name: str
     pid: int = 0
     interval: float = 0.0  # 必须大于0，parse时校验
     start_time: datetime = None
-    metric_data_table: list = field(default_factory=list)
+    metric_data: dict = field(default_factory=dict)
 
     # 计算得到
     downsample_rate: int = 0  # 将原始数据的N个点合并为1个点
 
     def metric_data_size(self):
-        if not self.metric_data_table:
+        if not self.metric_data:
             return 0
-        return len(self.metric_data_table[0].values)
+        return len(next(iter(self.metric_data.values())))
 
     def end_time(self):
         return self.start_time + timedelta(seconds=self.metric_data_size() * self.interval)
@@ -89,7 +102,6 @@ def search_valid_input(inputs, dirs):
 
 # 原始数据解析
 def parse_value_after_prefix(line, prefix):
-    """提取prefix之后的数值，返回(匹配且解析成功, 值)；仅匹配未解析成功返回(False, None)"""
     pos = line.find(prefix)
     if pos == -1:
         return False, None
@@ -106,18 +118,11 @@ def parse_value_after_prefix(line, prefix):
         return False, None
 
 
-def str_to_timestamp(sv):
-    sv = sv.strip()
-    if len(sv) < 26:
-        raise ValueError("size too small for timestamp format")
-    # 解析"YYYY-mm-dd HH:MM:SS"和微秒
-    return datetime.strptime(sv[:26], "%Y-%m-%d %H:%M:%S.%f")
-
-
 def parse_raw_data(path, entry):
     # 解析阶段控制变量
     step = "META"
     metric_num = 0
+    columns = []
 
     for buf in path.read_text().splitlines():
         line = buf.strip()
@@ -135,21 +140,31 @@ def parse_raw_data(path, entry):
                 continue
             pos = line.find("timestamp:")
             if pos != -1:
-                entry.start_time = str_to_timestamp(line[pos + len("timestamp:"):])
+                timestamp_str = line[pos + len("timestamp:"):].strip()
+                entry.start_time = datetime.strptime(timestamp_str[:26], "%Y-%m-%d %H:%M:%S.%f")
                 continue
             if "monitoring results:" in line:
                 step = "HEADER_ROW"
         elif step == "HEADER_ROW":
-            for token in line.split(", "):
-                entry.metric_data_table.append(MetricDataEntry(name=token.strip()))
-            metric_num = len(entry.metric_data_table)
+            names = [token.strip() for token in line.split(", ")]
+            if not names or names[0] != "#":
+                raise ValueError(f"missing '#' row index column in {path}")
+            metric_num = len(names) - 1
+            for name in names[1:]:
+                metric_entry = next((m for m in METRICS if m.name == name), None)
+                if metric_entry is None:
+                    raise ValueError(f"unknown metric column '{name}' in {path}")
+                if metric_entry in entry.metric_data:
+                    raise ValueError(f"duplicate metric column '{name}' in {path}")
+                entry.metric_data[metric_entry] = []
+                columns.append(metric_entry)
             step = "DATA_ROW"
         else:  # DATA_ROW
             tokens = [token.strip() for token in line.split(", ")]
-            if metric_num == 0 or metric_num != len(tokens):
+            if metric_num == 0 or metric_num + 1 != len(tokens):
                 raise ValueError(f"bad metric num in {path}")
-            for i, token in enumerate(tokens):
-                entry.metric_data_table[i].values.append(float(token))
+            for i, token in enumerate(tokens[1:]):  # 第0列为行序号
+                entry.metric_data[columns[i]].append(float(token))
 
     if step != "DATA_ROW":
         raise ValueError(f"bad raw data format in {path}")
@@ -187,8 +202,10 @@ def align_timeline(raw_data_table, range_start, range_end, resolution):
 
         # range切片
         entry.start_time += timedelta(seconds=range_l_idx * entry.interval)
-        for metric in entry.metric_data_table:
-            metric.values = metric.values[range_l_idx:range_r_idx]
+        entry.metric_data = {
+            metric_entry: values[range_l_idx:range_r_idx]
+            for metric_entry, values in entry.metric_data.items()
+        }
 
     # 重新计算range切片后的公共start time和end time，获取数据区间总长，用于计算向下采样倍率
     total_range_start_time = min(entry.start_time for entry in raw_data_table)
@@ -204,107 +221,117 @@ def align_timeline(raw_data_table, range_start, range_end, resolution):
         entry.downsample_rate = entry.metric_data_size() // range_resolution
 
 
-# 绘图
-def elide(s, n):
-    if len(s) <= n:
-        return s
-    if n <= 3:
-        return "." * n
-    return s[: n - 3] + "..."
+def derive_ratio(raw_data_table, numer, denom):
+    for entry in raw_data_table:
+        numer_values = entry.metric_data.get(numer)
+        denom_values = entry.metric_data.get(denom)
+        if not numer_values or not denom_values:
+            continue
+        ratio = next((n / d for d, n in zip(denom_values, numer_values) if d > 0), None)
+        if ratio is not None:
+            return ratio
+    return None
 
 
-def plot_cpu(raw_data_table, total_start_time, show):
+def merge_series(values, rate, kind):
+    if rate <= 1:
+        return values
+    merged = []
+    i = 0
+    while i + rate - 1 < len(values):
+        window = values[i: i + rate]
+        if kind == Merge.MIN:
+            merged.append(min(window))
+        elif kind == Merge.MAX:
+            merged.append(max(window))
+        else:
+            merged.append(sum(window) / rate)
+        i += rate
+    return merged
+
+
+def make_figure(num_axes):
     import matplotlib.pyplot as plt
 
-    entries = [
-        (entry, metric)
-        for entry in raw_data_table
-        for metric in entry.metric_data_table
-        if metric.name == METRIC_TABLE["cpu_eq_cores"] and metric.values
-    ]
-    if not entries:
-        return
-
-    # 根据downsample_rate，合并数据点，cpu利用率采取平均值
-    for r_entry, m_entry in entries:
-        if r_entry.downsample_rate <= 1:
-            # 不需要合并
-            continue
-
-        rate = r_entry.downsample_rate
-        merged = []
-        i = 0
-        while i + rate - 1 < len(m_entry.values):
-            merged.append(sum(m_entry.values[i: i + rate]) / rate)
-            i += rate
-        m_entry.values = merged
-        r_entry.interval *= rate
-
-    # 最大数值
-    max_value = max((value for _, m_entry in entries for value in m_entry.values), default=-math.inf)
-
     fig, axes = plt.subplots(
-        len(entries),
+        num_axes,
         1,
         sharex=True,
-        figsize=(16, max(min(9, 3 * len(entries)), len(entries))),
+        figsize=(16, max(min(9, 3 * num_axes), num_axes)),
     )
-    if len(entries) == 1:
+    if num_axes == 1:
         axes = [axes]
+    return fig, axes
 
-    for i, (r_entry, m_entry) in enumerate(entries):
-        offset = (r_entry.start_time - total_start_time).total_seconds()
 
-        # 构造时间数组，由于offset差异，每个raw data需要单独构造
-        times = [offset + j * r_entry.interval for j in range(len(m_entry.values))]
+def style_axis(ax, ylim):
+    ax.margins(x=0)
+    ax.grid(True, linestyle="--", alpha=0.5)
+    ax.set_ylim(-ylim / 20, ylim + ylim / 20)  # 对齐每个子图y坐标范围
 
-        ax = axes[i]
-        # 使用step绘制阶梯图，post逻辑：第0个点，时刻是0，对应[0, itv]区间的平均等效核数
-        ax.step(times, m_entry.values, where="post", label=m_entry.name, linewidth=1.5)
-        ax.margins(x=0)
-        ax.grid(True, linestyle="--", alpha=0.5)
-        ylim = max(1.0, max_value)
-        ax.set_ylim(-ylim / 20, ylim + ylim / 20)  # 对齐每个子图y坐标范围
-        # 绘制每个子图左侧描述raw data的标签
-        ax.set_ylabel(
-            f"#{i}\nPid: {r_entry.pid}\n{elide(r_entry.raw_file_name, 10)}",
-            rotation=0,
-            labelpad=30,
-            va="center",
-        )
-        ax.legend(loc="upper right")
 
-    fig.suptitle("CPU Equivalent Cores Time Series", fontsize=16, fontweight="bold")
+def label_axis(ax, i, r_entry, unit):
+    ax.set_ylabel(unit)
+    ax.set_title(f"#{i}  Pid: {r_entry.pid} File: {r_entry.raw_file_name}")
+    ax.legend(loc="upper right")
+
+
+def finish_figure(fig, axes, title, file_name, show):
+    import matplotlib.pyplot as plt
+
+    fig.suptitle(title, fontsize=16, fontweight="bold")
     axes[-1].set_xlabel("Time (s)")
     fig.tight_layout()
-    fig.savefig("cpu_usage.png", dpi=100, bbox_inches="tight")
+    fig.savefig(file_name, dpi=100, bbox_inches="tight")
 
     if show:
         plt.show()
     plt.close("all")
 
 
-def report(args):
-    # 搜索日志文件
-    valid_input = search_valid_input(args.input, args.dir)
-
-    # 解析数据
-    raw_data_table = []
-    for path in valid_input:
-        entry = RawDataEntry(raw_file_name=path.name)
-        parse_raw_data(path, entry)
-        raw_data_table.append(entry)
-
-    if not raw_data_table:
+def plot_group(raw_data_table, total_start_time, show, title, file_name, metric_entries, unit, right_unit=None):
+    # 收集各raw data中本组可用指标
+    entries = []
+    for r_entry in raw_data_table:
+        metrics = [(metric_entry, r_entry.metric_data[metric_entry])
+                   for metric_entry in metric_entries if r_entry.metric_data.get(metric_entry)]
+        if metrics:
+            entries.append((r_entry, metrics))
+    if not entries:
         return
 
-    # 对齐时间轴，range裁剪，分辨率缩放
-    # 注意：total_start_time需在切片前计算，对应C++版AlignTimeline开头的TOTAL_START_TIME
-    total_start_time = min(entry.start_time for entry in raw_data_table)
-    align_timeline(raw_data_table, args.range_start, args.range_end, args.resolution)
+    # 最大数值
+    max_value = max(
+        (value for _, metrics in entries for _, values in metrics for value in values), default=-math.inf
+    )
+    ylim = max(1.0, max_value)
 
-    # 绘制CPU利用率折线图
-    plot_cpu(raw_data_table, total_start_time, args.show)
+    fig, axes = make_figure(len(entries))
+    for i, (r_entry, metrics) in enumerate(entries):
+        offset = (r_entry.start_time - total_start_time).total_seconds()
+
+        # 构造时间数组，由于offset差异，每个raw data需要单独构造
+        times = [offset + j * r_entry.interval for j in range(len(metrics[0][1]))]
+
+        ax = axes[i]
+        for metric_entry, values in metrics:
+            if metric_entry.step:
+                ax.step(times, values, where="post", label=metric_entry.name, linewidth=1.5)
+            else:
+                ax.plot(times, values, label=metric_entry.name, linewidth=1.5)
+        style_axis(ax, ylim)
+        label_axis(ax, i, r_entry, unit)
+
+        # 右轴与左轴共用一条曲线，按固定倍率缩放
+        if right_unit is not None:
+            right_name, ratio = right_unit
+            if ratio is not None:
+                ax_r = ax.twinx()
+                lo, hi = ax.get_ylim()
+                ax_r.set_ylim(lo * ratio, hi * ratio)
+                ax_r.set_ylabel(right_name)
+
+    finish_figure(fig, axes, title, file_name, show)
 
 
 def parse_args():
@@ -383,7 +410,66 @@ def parse_args():
 
 
 def main():
-    report(parse_args())
+    # 解析命令行参数
+    args = parse_args()
+
+    # 搜索日志文件
+    valid_input = search_valid_input(args.input, args.dir)
+
+    # 解析数据
+    raw_data_table = []
+    for path in valid_input:
+        entry = FileData(raw_file_name=path.name)
+        parse_raw_data(path, entry)
+        raw_data_table.append(entry)
+
+    if not raw_data_table:
+        return
+
+    # 对齐时间轴，range裁剪，分辨率缩放
+    # 注意：total_start_time需在切片前计算，对应C++版AlignTimeline开头的TOTAL_START_TIME
+    total_start_time = min(entry.start_time for entry in raw_data_table)
+    align_timeline(raw_data_table, args.range_start, args.range_end, args.resolution)
+
+    # 根据downsample_rate合并数据点
+    for entry in raw_data_table:
+        if entry.downsample_rate > 1:
+            rate = entry.downsample_rate
+            entry.metric_data = {
+                metric_entry: merge_series(values, rate, metric_entry.merge)
+                for metric_entry, values in entry.metric_data.items()
+            }
+            entry.interval *= rate
+
+    # 绘制CPU利用率、CPU主频、内存时序图
+    plot_group(
+        raw_data_table,
+        total_start_time,
+        args.show,
+        "CPU Usage Time Series",
+        "cpu_usage.png",
+        (CPU_EQ_CORES,),
+        unit="EqCores",
+        right_unit=("%Usage", derive_ratio(raw_data_table, CPU_USAGE, CPU_EQ_CORES)),
+    )
+    plot_group(
+        raw_data_table,
+        total_start_time,
+        args.show,
+        "CPU Frequency Time Series",
+        "cpu_freq.png",
+        (CPU_AVG_GHZ, CPU_MIN_GHZ),
+        unit="GHz",
+    )
+    plot_group(
+        raw_data_table,
+        total_start_time,
+        args.show,
+        "Memory Time Series",
+        "memory.png",
+        (RSS, HWM, SWAP),
+        unit="G",
+    )
 
 
 if __name__ == "__main__":
