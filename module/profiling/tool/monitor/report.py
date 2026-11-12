@@ -6,7 +6,6 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from glob import glob as glob_match
 from pathlib import Path
 
 # 全局变量
@@ -59,45 +58,6 @@ class FileData:
 
     def duration(self):
         return self.end_time() - self.start_time
-
-
-# 输入文件搜索
-def search_valid_input(inputs, dirs):
-    literal_input = []
-    patterns = []
-    for input_ in inputs:
-        input_path = Path(input_)
-        if input_path.is_absolute():
-            if "*" in input_ or "?" in input_:
-                # glob绝对路径
-                patterns.append(input_)
-            else:
-                # 普通绝对路径
-                literal_input.append(input_path)
-        else:
-            for dir_ in dirs:
-                if "*" in input_ or "?" in input_:
-                    # glob相对路径，那么在dir中递归查找glob
-                    patterns.append(str(Path(dir_) / "**" / input_path))
-                    patterns.append(str(Path(dir_) / input_path))
-                else:
-                    # 普通相对路径，仅拼接
-                    literal_input.append(Path(dir_) / input_path)
-
-    # glob匹配，recursive=True使**生效
-    for pattern in patterns:
-        for path in glob_match(pattern, recursive=True):
-            literal_input.append(Path(path))
-
-    # 经典化路径并去重
-    valid_input = []
-    for path in literal_input:
-        if path.is_file():
-            valid_input.append(path.resolve())
-        else:
-            print(f"warning: bad path. ignored: {path}", file=sys.stderr)
-
-    return sorted(set(valid_input))
 
 
 # 原始数据解析
@@ -335,9 +295,8 @@ def plot_group(raw_data_table, total_start_time, show, title, file_name, metric_
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(prog="report", description="process and visualize monitor raw data")
-    parser.add_argument("input", help="comma-separated sequence of raw data file")
-    parser.add_argument("-d", "--dir", default=".", help="the root directory to search for files matching the 'input' pattern")
+    parser = argparse.ArgumentParser(prog="report", description="process and visualize monitor output files")
+    parser.add_argument("input", nargs="+", help="monitor output file sequence")
     parser.add_argument(
         "--resolution",
         default="auto",
@@ -351,19 +310,6 @@ def parse_args():
     )
     parser.add_argument("--show", action="store_true", help="display the generated plot in a GUI window")
     args = parser.parse_args()
-
-    # input
-    args.input = [token for token in args.input.split(",")]
-
-    # --dir
-    args.dir = [token for token in args.dir.split(",")]
-    for dir_ in args.dir:
-        if not Path(dir_).is_dir():
-            print(f"error: '{dir_}' in --dir is not a directory", file=sys.stderr)
-            sys.exit(1)
-    if not args.dir:
-        print("error: no valid directories provided in --dir", file=sys.stderr)
-        sys.exit(1)
 
     # --resolution
     if args.resolution == "auto":
@@ -411,14 +357,21 @@ def parse_args():
 
 def main():
     # 解析命令行参数
+    # 递归查找：find <dir> -name '<pattern>' -type f -print0 | xargs -0 ./report.py
     args = parse_args()
 
-    # 搜索日志文件
-    valid_input = search_valid_input(args.input, args.dir)
+    # 提取输入文件
+    inputs = []
+    for i in args.input:
+        path = Path(i)
+        if path.is_file():
+            inputs.append(path.resolve())
+        else:
+            print(f"warning: input '{path}' is not a file, ignored", file=sys.stderr)
 
     # 解析数据
     raw_data_table = []
-    for path in valid_input:
+    for path in sorted(set(inputs)):
         entry = FileData(raw_file_name=path.name)
         parse_raw_data(path, entry)
         raw_data_table.append(entry)
