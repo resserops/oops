@@ -34,7 +34,7 @@ std::ostream &operator<<(std::ostream &os, const Info &info) {
     os.precision(2);
 
     os << info.load1 << ' ' << info.load5 << ' ' << info.load15 << ' ' << info.sched_entities.running << '/'
-       << info.sched_entities.total << ' ' << info.last_pid;
+       << info.sched_entities.total << ' ' << info.last_pid << '\n';
 
     os.flags(flags);
     os.precision(precision);
