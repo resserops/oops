@@ -18,6 +18,7 @@
 #include "oops/cpu_timer.h"
 #include "oops/enum_bitset.h"
 #include "oops/once.h"
+#include "oops/proc/loadavg.h"
 #include "oops/proc/meminfo.h"
 #include "oops/proc/task/status.h"
 #include "oops/storage.h"
@@ -33,10 +34,22 @@ struct Args {
 } ARGS;
 
 // 指标定义
-enum class MetricGroup : uint8_t { CPU_USAGE, CPU_FREQ, MEMORY, DEBUG, COUNT };
+enum class MetricGroup : uint8_t { CPU_USAGE, CPU_FREQ, KERNEL, MEMORY, DEBUG, COUNT };
 oops::EnumBitset<MetricGroup> ENABLED_METRIC_GROUP;
 
-enum class Metrics : uint8_t { CPU_EQ_CORES, CPU_USAGE, CPU_AVG_GHZ, CPU_MIN_GHZ, RSS, HWM, SWAP, DUTY, SCALE, COUNT };
+enum class Metrics : uint8_t {
+    CPU_EQ_CORES,
+    CPU_USAGE,
+    CPU_AVG_GHZ,
+    CPU_MIN_GHZ,
+    THREADS,
+    RSS,
+    HWM,
+    SWAP,
+    DUTY,
+    SCALE,
+    COUNT
+};
 
 struct MetricEntry {
     std::string_view name;
@@ -48,9 +61,9 @@ struct MetricEntry {
 constexpr MetricEntry METRIC_TABLE[]{
     {"EqCPUs", 8, MetricGroup::CPU_USAGE},      {"%Usage", 8, MetricGroup::CPU_USAGE},
     {"AvgGHz", 8, MetricGroup::CPU_FREQ, true}, {"MinGHz", 8, MetricGroup::CPU_FREQ, true},
-    {"RSS(G)", 8, MetricGroup::MEMORY},         {"HWM(G)", 8, MetricGroup::MEMORY},
-    {"Swap(G)", 8, MetricGroup::MEMORY},        {"%Duty", 8, MetricGroup::DEBUG},
-    {"%Scale", 8, MetricGroup::DEBUG}};
+    {"Threads", 8, MetricGroup::KERNEL},        {"RSS(G)", 8, MetricGroup::MEMORY},
+    {"HWM(G)", 8, MetricGroup::MEMORY},         {"Swap(G)", 8, MetricGroup::MEMORY},
+    {"%Duty", 8, MetricGroup::DEBUG},           {"%Scale", 8, MetricGroup::DEBUG}};
 static_assert(std::size(METRIC_TABLE) == oops::ToUnderlying(Metrics::COUNT));
 
 bool ProcExist(pid_t pid) {
@@ -200,6 +213,31 @@ void Measure() {
             values[oops::ToUnderlying(Metrics::CPU_MIN_GHZ)] = freq.Min() / 1000;
         }
 
+        // PID模式下，线程数和内存统计均取自/proc/{task}/status，一并读取
+        namespace status = oops::proc::task::status;
+        status::Info status_info;
+        if (ARGS.mode != Mode::SYSTEM_WIDE) {
+            status::FieldMask mask;
+            if (ENABLED_METRIC_GROUP.Test(MetricGroup::KERNEL)) {
+                mask |= status::Field::THREADS;
+            }
+            if (ENABLED_METRIC_GROUP.Test(MetricGroup::MEMORY)) {
+                mask |= status::Field::VM_RSS | status::Field::VM_HWM | status::Field::VM_SWAP;
+            }
+            if (mask.any()) {
+                status_info = status::Get(ARGS.pid, mask);
+            }
+        }
+
+        // 内核对象计数
+        if (ENABLED_METRIC_GROUP.Test(MetricGroup::KERNEL)) {
+            if (ARGS.mode == Mode::SYSTEM_WIDE) {
+                values[oops::ToUnderlying(Metrics::THREADS)] = oops::proc::loadavg::Get().sched_entities.total;
+            } else {
+                values[oops::ToUnderlying(Metrics::THREADS)] = status_info.threads;
+            }
+        }
+
         // 内存
         if (ENABLED_METRIC_GROUP.Test(MetricGroup::MEMORY)) {
             if (ARGS.mode == Mode::SYSTEM_WIDE) {
@@ -212,11 +250,10 @@ void Measure() {
                 values[oops::ToUnderlying(Metrics::SWAP)] =
                     oops::Storage<double, oops::GiB>{info.swap_total - info.swap_free}.Count();
             } else {
-                using namespace oops::proc::task::status;
-                auto info{Get(ARGS.pid, Field::VM_RSS | Field::VM_HWM | Field::VM_SWAP)};
-                values[oops::ToUnderlying(Metrics::RSS)] = oops::Storage<double, oops::GiB>{info.vm_rss}.Count();
-                values[oops::ToUnderlying(Metrics::HWM)] = oops::Storage<double, oops::GiB>{info.vm_hwm}.Count();
-                values[oops::ToUnderlying(Metrics::SWAP)] = oops::Storage<double, oops::GiB>{info.vm_swap}.Count();
+                values[oops::ToUnderlying(Metrics::RSS)] = oops::Storage<double, oops::GiB>{status_info.vm_rss}.Count();
+                values[oops::ToUnderlying(Metrics::HWM)] = oops::Storage<double, oops::GiB>{status_info.vm_hwm}.Count();
+                values[oops::ToUnderlying(Metrics::SWAP)] =
+                    oops::Storage<double, oops::GiB>{status_info.vm_swap}.Count();
             }
         }
 
@@ -245,7 +282,7 @@ void ParseArgs(int argc, char *argv[]) {
         .default_value(1.);
     program.add_argument("-m", "--metric")
         .help("comma-separated sequence of metrics to monitor (supported metrics: all[a], cpu[c], cpu-freq[cf], "
-              "cpu-usage[cu], memory[m], debug[d])")
+              "cpu-usage[cu], kernel[k], memory[m], debug[d])")
         .default_value("all");
     program.add_argument("-f", "--fallback")
         .help("fall back to system-wide acquisition for metrics without pid-wide support")
@@ -290,6 +327,7 @@ void ParseArgs(int argc, char *argv[]) {
         if (token == "all" || token == "a") {
             ENABLED_METRIC_GROUP.Set(MetricGroup::CPU_USAGE);
             ENABLED_METRIC_GROUP.Set(MetricGroup::CPU_FREQ);
+            ENABLED_METRIC_GROUP.Set(MetricGroup::KERNEL);
             ENABLED_METRIC_GROUP.Set(MetricGroup::MEMORY);
         } else if (token == "cpu" || token == "c") {
             ENABLED_METRIC_GROUP.Set(MetricGroup::CPU_USAGE);
@@ -298,6 +336,8 @@ void ParseArgs(int argc, char *argv[]) {
             ENABLED_METRIC_GROUP.Set(MetricGroup::CPU_USAGE);
         } else if (token == "cpu-freq" || token == "cf") {
             ENABLED_METRIC_GROUP.Set(MetricGroup::CPU_FREQ);
+        } else if (token == "kernel" || token == "k") {
+            ENABLED_METRIC_GROUP.Set(MetricGroup::KERNEL);
         } else if (token == "memory" || token == "mem" || token == "m") {
             ENABLED_METRIC_GROUP.Set(MetricGroup::MEMORY);
         } else if (token == "debug" || token == "d") {

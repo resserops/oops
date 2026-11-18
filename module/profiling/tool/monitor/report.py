@@ -30,10 +30,11 @@ CPU_EQ_CORES = Metric("EqCPUs", step=True)
 CPU_USAGE = Metric("%Usage", step=True)
 CPU_AVG_GHZ = Metric("AvgGHz", step=True)
 CPU_MIN_GHZ = Metric("MinGHz", merge=Merge.MIN, step=True)
+THREADS = Metric("Threads", step=True)
 RSS = Metric("RSS(G)")
 HWM = Metric("HWM(G)", merge=Merge.MAX)
 SWAP = Metric("Swap(G)")
-METRICS = (CPU_EQ_CORES, CPU_USAGE, CPU_AVG_GHZ, CPU_MIN_GHZ, RSS, HWM, SWAP)
+METRICS = (CPU_EQ_CORES, CPU_USAGE, CPU_AVG_GHZ, CPU_MIN_GHZ, THREADS, RSS, HWM, SWAP)
 
 
 # 存储单个测量结果文件
@@ -413,6 +414,15 @@ def main():
         "cpu_freq.png",
         (CPU_AVG_GHZ, CPU_MIN_GHZ),
         unit="GHz",
+    )
+    plot_group(
+        raw_data_table,
+        total_start_time,
+        args.show,
+        "Kernel Objects Time Series",
+        "kernel.png",
+        (THREADS,),
+        unit="threads",
     )
     plot_group(
         raw_data_table,
